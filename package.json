@@ -6,21 +6,30 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "preview": "tsx scripts/preview.ts",
+    "e2e": "tsx scripts/e2e.ts"
   },
   "dependencies": {
+    "@vercel/blob": "^2.7.0",
+    "heic2any": "^0.0.4",
+    "jsbarcode": "^3.12.3",
+    "nanoid": "^5.1.16",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@napi-rs/canvas": "^1.0.5",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
+    "playwright": "^1.62.1",
     "tailwindcss": "^4",
+    "tsx": "^4.23.12",
     "typescript": "^5"
   }
 }
