@@ -257,10 +257,110 @@ export function devaBadge(
 /* ------------------------------------------------------------------ images */
 
 /**
- * Cover-fit an image into a rect (like CSS object-fit: cover) with a normalised
- * focal point + zoom, so portrait, landscape and off-centre photos all land
- * sensibly without the user needing to pre-crop.
+ * How the uploaded photo meets the frame.
+ *
+ * - `contain` — the **whole photo is visible, nothing is cropped away**. The
+ *   leftover area is filled with a blurred, over-scaled copy of the same photo,
+ *   so a portrait in a landscape window reads as a designed shot rather than as
+ *   letterbox bars. This is the default.
+ * - `cover` — fills the frame edge to edge and crops the overflow. Better for
+ *   tight headshots, and the drag/zoom controls make the crop the user's call.
  */
+export type PhotoFit = "contain" | "cover";
+
+export type PhotoTransform = {
+  zoom: number;
+  offsetX: number;
+  offsetY: number;
+  fit: PhotoFit;
+};
+
+/**
+ * The ID card's photo window resizes to the picture, so "whole photo" there is
+ * an exact fit — nothing cropped, nothing letterboxed. That's the default.
+ */
+export const DEFAULT_TRANSFORM: PhotoTransform = {
+  zoom: 1,
+  offsetX: 0,
+  offsetY: 0,
+  fit: "contain",
+};
+
+/**
+ * A circle can't take the photo's aspect ratio, so containing a rectangle inside
+ * one leaves the face small — and X crops profile pictures to a circle anyway.
+ * The PFP therefore fills by default; the toggle still offers "whole photo".
+ */
+export const DEFAULT_PFP_TRANSFORM: PhotoTransform = {
+  zoom: 1,
+  offsetX: 0,
+  offsetY: 0,
+  fit: "cover",
+};
+
+/** Geometry of the drawn image for a given frame + transform. */
+export function photoRect(
+  img: CanvasImageSource,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  t: PhotoTransform,
+) {
+  const iw = (img as HTMLImageElement).width;
+  const ih = (img as HTMLImageElement).height;
+  const base =
+    t.fit === "cover" ? Math.max(w / iw, h / ih) : Math.min(w / iw, h / ih);
+  const scale = base * t.zoom;
+  const dw = iw * scale;
+  const dh = ih * scale;
+  // Offsets are fractions of the overflow, so panning can never pull the image
+  // off the frame — and at contain/zoom 1 there is no overflow to pan into.
+  const maxDX = Math.max(0, (dw - w) / 2);
+  const maxDY = Math.max(0, (dh - h) / 2);
+  return {
+    dw,
+    dh,
+    dx: x + (w - dw) / 2 + clamp(t.offsetX, -1, 1) * maxDX,
+    dy: y + (h - dh) / 2 + clamp(t.offsetY, -1, 1) * maxDY,
+    maxDX,
+    maxDY,
+  };
+}
+
+/**
+ * Draw a photo into a frame. Assumes the caller has already clipped to the
+ * frame shape. In `contain` mode a blurred cover-fit copy is laid down first so
+ * the frame is always fully painted without any part of the photo being cut.
+ */
+export function drawPhoto(
+  ctx: Ctx,
+  img: CanvasImageSource,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  transform: PhotoTransform = DEFAULT_TRANSFORM,
+) {
+  if (transform.fit === "contain") {
+    const bg = photoRect(img, x, y, w, h, { ...transform, fit: "cover", zoom: 1.18 });
+    ctx.save();
+    // Chromium, Safari and @napi-rs/canvas all support ctx.filter; if a runtime
+    // ever doesn't, the backdrop simply renders unblurred rather than breaking.
+    ctx.filter = `blur(${Math.max(8, Math.min(w, h) * 0.06)}px)`;
+    ctx.drawImage(img, bg.dx, bg.dy, bg.dw, bg.dh);
+    ctx.filter = "none";
+    // knock the backdrop back so the real photo stays the subject
+    ctx.fillStyle = "rgba(15,81,50,0.42)";
+    ctx.fillRect(x, y, w, h);
+    ctx.restore();
+  }
+
+  const r = photoRect(img, x, y, w, h, transform);
+  ctx.drawImage(img, r.dx, r.dy, r.dw, r.dh);
+}
+
+/** @deprecated use drawPhoto — kept so callers that only ever want cover read clearly. */
 export function drawCover(
   ctx: Ctx,
   img: CanvasImageSource,
@@ -268,24 +368,9 @@ export function drawCover(
   y: number,
   w: number,
   h: number,
-  transform: { zoom: number; offsetX: number; offsetY: number } = {
-    zoom: 1,
-    offsetX: 0,
-    offsetY: 0,
-  },
+  transform: Omit<PhotoTransform, "fit"> = { zoom: 1, offsetX: 0, offsetY: 0 },
 ) {
-  const iw = (img as HTMLImageElement).width;
-  const ih = (img as HTMLImageElement).height;
-  const base = Math.max(w / iw, h / ih);
-  const scale = base * transform.zoom;
-  const dw = iw * scale;
-  const dh = ih * scale;
-  // offsets are fractions of the overflow, clamped so the frame never shows gaps
-  const maxDX = Math.max(0, (dw - w) / 2);
-  const maxDY = Math.max(0, (dh - h) / 2);
-  const dx = x + (w - dw) / 2 + clamp(transform.offsetX, -1, 1) * maxDX;
-  const dy = y + (h - dh) / 2 + clamp(transform.offsetY, -1, 1) * maxDY;
-  ctx.drawImage(img, dx, dy, dw, dh);
+  drawPhoto(ctx, img, x, y, w, h, { ...transform, fit: "cover" });
 }
 
 export function clamp(v: number, lo: number, hi: number) {

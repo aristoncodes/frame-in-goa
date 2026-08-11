@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from "react";
-import { clamp, drawCover } from "@/lib/render/primitives";
+import { clamp, drawPhoto, photoRect } from "@/lib/render/primitives";
 import type { PhotoTransform } from "@/lib/render/idcard";
 import type { LoadedPhoto } from "@/lib/image";
 
@@ -40,12 +40,13 @@ export default function PhotoAdjust({ photo, aspect, round, transform, onChange 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawCover(ctx, photo.source, 0, 0, canvas.width, canvas.height, transform);
+    drawPhoto(ctx, photo.source, 0, 0, canvas.width, canvas.height, transform);
   }, [photo, aspect, transform]);
 
   /**
-   * Converts a pixel drag into the normalised offsets drawCover expects, using
+   * Converts a pixel drag into the normalised offsets drawPhoto expects, using
    * the transform captured when the gesture began so the mapping stays linear.
+   * Geometry comes from photoRect, so fit mode and zoom are always respected.
    */
   const applyDrag = useCallback(
     (dxPx: number, dyPx: number, start: PhotoTransform) => {
@@ -54,15 +55,20 @@ export default function PhotoAdjust({ photo, aspect, round, transform, onChange 
       if (!box || !canvas) return;
       const rect = box.getBoundingClientRect();
       const scale = canvas.width / rect.width;
-      const base = Math.max(canvas.width / photo.width, canvas.height / photo.height);
-      const drawnW = photo.width * base * start.zoom;
-      const drawnH = photo.height * base * start.zoom;
-      const maxDX = Math.max(1, (drawnW - canvas.width) / 2);
-      const maxDY = Math.max(1, (drawnH - canvas.height) / 2);
+      const { maxDX, maxDY } = photoRect(
+        photo.source,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+        start,
+      );
       onChange({
-        zoom: start.zoom,
-        offsetX: clamp(start.offsetX + (dxPx * scale) / maxDX, -1, 1),
-        offsetY: clamp(start.offsetY + (dyPx * scale) / maxDY, -1, 1),
+        ...start,
+        // No overflow on an axis (contain at zoom 1) means nothing to pan into —
+        // guard the divide rather than letting the offset explode.
+        offsetX: maxDX > 0.5 ? clamp(start.offsetX + (dxPx * scale) / maxDX, -1, 1) : 0,
+        offsetY: maxDY > 0.5 ? clamp(start.offsetY + (dyPx * scale) / maxDY, -1, 1) : 0,
       });
     },
     [photo, onChange],
@@ -140,6 +146,39 @@ export default function PhotoAdjust({ photo, aspect, round, transform, onChange 
         />
       </div>
 
+      <div
+        role="radiogroup"
+        aria-label="How the photo meets the frame"
+        className="flex rounded-full border border-[var(--cream)]/15 bg-black/25 p-1 text-[11px]"
+      >
+        {(
+          [
+            ["contain", "Whole photo", "Nothing gets cropped"],
+            ["cover", "Fill frame", "Crops to the edges"],
+          ] as const
+        ).map(([value, label, hint]) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={transform.fit === value}
+            title={hint}
+            onClick={() =>
+              // Switching mode re-centres: an offset tuned for a cropped frame
+              // is meaningless once the whole photo is in view, and vice versa.
+              onChange((prev) => ({ ...prev, fit: value, offsetX: 0, offsetY: 0, zoom: 1 }))
+            }
+            className={`flex-1 rounded-full px-3 py-1.5 font-bold tracking-wide transition ${
+              transform.fit === value
+                ? "bg-[var(--gold)] text-[var(--ink)]"
+                : "text-[var(--cream)]/65 hover:text-[var(--cream)]"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <label className="flex items-center gap-3 text-xs font-semibold tracking-wide text-[var(--cream)]/70">
         ZOOM
         <input
@@ -157,7 +196,7 @@ export default function PhotoAdjust({ photo, aspect, round, transform, onChange 
         />
         <button
           type="button"
-          onClick={() => onChange({ zoom: 1, offsetX: 0, offsetY: 0 })}
+          onClick={() => onChange((prev) => ({ ...prev, zoom: 1, offsetX: 0, offsetY: 0 }))}
           className="rounded-full border border-[var(--cream)]/25 px-3 py-1 text-[11px] transition hover:border-[var(--gold)] hover:text-[var(--gold)]"
         >
           Reset

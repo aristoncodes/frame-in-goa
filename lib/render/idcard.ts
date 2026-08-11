@@ -13,17 +13,23 @@ import {
   RenderEnv,
 } from "./motifs";
 import {
+  clamp,
   Ctx,
   devaBadge,
-  drawCover,
+  drawPhoto,
   ellipsize,
   fitFontSize,
   font,
   roundRect,
   trackedText,
+  type PhotoFit,
+  type PhotoTransform,
 } from "./primitives";
 
-export type PhotoTransform = { zoom: number; offsetX: number; offsetY: number };
+export type CardLayout = ReturnType<typeof cardLayout>;
+
+export type { PhotoTransform, PhotoFit } from "./primitives";
+export { DEFAULT_TRANSFORM, DEFAULT_PFP_TRANSFORM } from "./primitives";
 
 export type CardData = {
   name: string;
@@ -39,33 +45,75 @@ export type CardFace = "front" | "back";
 const W = CANVAS.card.w;
 const H = CANVAS.card.h;
 
-/** Card geometry, shared by both faces so front and back read as one object. */
-const CARD = {
-  w: 524,
-  h: 796,
-  r: 30,
-  get x() {
-    return (W - this.w) / 2;
-  },
-  y: 362,
-};
-
+const CARD_W = 524;
+const CARD_R = 30;
 const PAD = 40;
 const CHIP = 42;
 const CHIP_GAP = 16;
 
-/**
- * The portrait window's geometry, hoisted so the crop UI can present a viewport
- * with exactly the aspect ratio the card will render into.
- */
-const PORTRAIT = (() => {
-  const left = CARD.x + PAD;
-  const right = CARD.x + CARD.w - PAD;
-  const x = left + CHIP + 26 + 24;
-  return { x, w: right - x, h: CHIP * 5 + CHIP_GAP * 4 };
-})();
+/** Height of the five stacked discipline chips — the row's natural minimum. */
+const CHIP_COL_H = CHIP * 5 + CHIP_GAP * 4;
 
-export const PORTRAIT_ASPECT = PORTRAIT.w / PORTRAIT.h;
+/** "BUILDER ID" is fixed text, so its size is a constant, not a fit-at-runtime. */
+const TITLE_SIZE = 74;
+/** Card top → top of the photo/icon row. */
+const HEADER_H = 104 + Math.round(TITLE_SIZE * 0.96) + 24;
+/** Bottom of the photo/icon row → card bottom (identity block + meta + footer). */
+const FOOTER_H = 337;
+
+const CARD_X = (W - CARD_W) / 2;
+const CONTENT_LEFT = CARD_X + PAD;
+const CONTENT_RIGHT = CARD_X + CARD_W - PAD;
+const RULE_X = CONTENT_LEFT + CHIP + 26;
+const PHOTO_X = RULE_X + 24;
+
+const PHOTO_MAX_W = CONTENT_RIGHT - PHOTO_X;
+// Capped so a 9:16 phone selfie still leaves the lanyard room above the card and
+// the GOA 2026 wordmark room below it.
+const PHOTO_MAX_H = 340;
+/** Window used in `cover` mode — the reference badge's landscape crop. */
+const PHOTO_COVER_H = CHIP_COL_H;
+
+/**
+ * The photo window sizes itself to the uploaded photo.
+ *
+ * In `contain` mode it takes the photo's own aspect ratio (bounded by the space
+ * available on the card), so the picture fits *exactly*: nothing is cropped and
+ * there are no letterbox bars either. In `cover` mode the window is the fixed
+ * landscape crop from the reference badge and the photo fills it.
+ */
+export function photoWindow(photoAspect: number | null, fit: PhotoFit) {
+  if (!photoAspect || !isFinite(photoAspect) || photoAspect <= 0 || fit === "cover") {
+    return { w: PHOTO_MAX_W, h: PHOTO_COVER_H };
+  }
+  let w = PHOTO_MAX_W;
+  let h = w / photoAspect;
+  if (h > PHOTO_MAX_H) {
+    h = PHOTO_MAX_H;
+    w = h * photoAspect;
+  }
+  return { w, h };
+}
+
+/**
+ * Full card geometry for a given photo. Both faces are laid out from this, so a
+ * card that grew for a tall portrait keeps the same silhouette front and back.
+ */
+export function cardLayout(photoAspect: number | null, fit: PhotoFit) {
+  const photo = photoWindow(photoAspect, fit);
+  const rowH = Math.max(CHIP_COL_H, photo.h);
+  const h = HEADER_H + rowH + FOOTER_H;
+  // Anchor the card's bottom near the GOA 2026 wordmark, then clamp the top so
+  // a tall card never rides up into the mirrored headline.
+  const y = clamp(1174 - h, 340, 404);
+  return { x: CARD_X, y, w: CARD_W, h, r: CARD_R, rowH, photo };
+}
+
+/** Aspect the crop UI should present so its viewport matches the card exactly. */
+export function previewAspect(photoAspect: number | null, fit: PhotoFit) {
+  const win = photoWindow(photoAspect, fit);
+  return win.w / win.h;
+}
 
 /* ------------------------------------------------------------------ poster */
 
@@ -73,7 +121,7 @@ export const PORTRAIT_ASPECT = PORTRAIT.w / PORTRAIT.h;
  * Draws everything behind the card: green field, mirrored headline, starbursts,
  * squiggle, गोवा badge, GOA 2026 wordmark, lanyard strap and clip.
  */
-function poster(ctx: Ctx) {
+function poster(ctx: Ctx, cardTop: number) {
   posterBackground(ctx, W, H);
   mirroredHeadline(ctx, W, { top: -18 });
   bottomWordmark(ctx, W, H);
@@ -83,17 +131,17 @@ function poster(ctx: Ctx) {
     squiggle: [W * 0.025, H * 0.63, W * 0.26],
     deva: [W * 0.868, H * 0.44, 122],
   });
-  lanyard(ctx, W / 2, CARD.y, 1.18);
+  lanyard(ctx, W / 2, cardTop, 1.18);
 }
 
 /* ------------------------------------------------------------- front face */
 
-function drawFront(ctx: Ctx, env: RenderEnv, data: CardData) {
-  const { x, y, w, h, r } = { ...CARD, x: CARD.x };
+function drawFront(ctx: Ctx, env: RenderEnv, data: CardData, L: CardLayout) {
+  const { x, y, w, h, r, rowH } = L;
   cardShell(ctx, x, y, w, h, r);
 
-  const left = x + PAD;
-  const right = x + w - PAD;
+  const left = CONTENT_LEFT;
+  const right = CONTENT_RIGHT;
   const innerW = right - left;
 
   /* header ------------------------------------------------------------- */
@@ -104,39 +152,44 @@ function drawFront(ctx: Ctx, env: RenderEnv, data: CardData) {
   ctx.font = font(FONTS.display, 28, 900);
   trackedText(ctx, EVENT.name, left, y + 104, 0.6);
 
-  const titleSize = fitFontSize(ctx, "BUILDER ID", FONTS.display, 900, 80, 48, innerW, 1);
-  trackedText(ctx, "BUILDER ID", left, y + 104 + titleSize * 0.96, 1);
+  ctx.font = font(FONTS.display, TITLE_SIZE, 900);
+  trackedText(ctx, "BUILDER ID", left, y + 104 + Math.round(TITLE_SIZE * 0.96), 1);
   ctx.restore();
 
-  const rowTop = y + 104 + titleSize * 0.96 + 24;
+  const rowTop = y + HEADER_H;
 
   /* icon column + photo ------------------------------------------------ */
-  const chip = CHIP;
-  const chipGap = CHIP_GAP;
-  const colH = PORTRAIT.h;
-  iconColumn(ctx, left, rowTop, chip, chipGap, activeIconsFor(data.stack, data.role));
+  // Both the chips and the photo are centred in the row, so a short (wide) or
+  // tall photo stays optically aligned with the column beside it.
+  const colTop = rowTop + (rowH - CHIP_COL_H) / 2;
+  iconColumn(ctx, left, colTop, CHIP, CHIP_GAP, activeIconsFor(data.stack, data.role));
 
   // hairline rule separating the chips from the portrait
-  const ruleX = left + chip + 26;
   ctx.save();
   ctx.strokeStyle = "rgba(58,42,26,0.45)";
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(ruleX, rowTop + 2);
-  ctx.lineTo(ruleX, rowTop + colH - 2);
+  ctx.moveTo(RULE_X, rowTop + 2);
+  ctx.lineTo(RULE_X, rowTop + rowH - 2);
   ctx.stroke();
   ctx.restore();
 
-  const photoX = ruleX + 24;
-  const photoW = right - photoX;
-  const photoH = colH;
-  drawPortrait(ctx, data, photoX, rowTop, photoW, photoH);
+  // A window narrower than the available space (tall photo) is centred in it,
+  // so the card stays balanced rather than leaning left.
+  drawPortrait(
+    ctx,
+    data,
+    PHOTO_X + (PHOTO_MAX_W - L.photo.w) / 2,
+    rowTop + (rowH - L.photo.h) / 2,
+    L.photo.w,
+    L.photo.h,
+  );
 
   /* identity block ----------------------------------------------------- */
   // The bottom row is pinned to the card, so the identity block gets whatever
   // vertical budget is left — it can never run into the barcode.
   const metaTop = y + h - 112;
-  let cy = rowTop + colH + 56;
+  let cy = rowTop + rowH + 56;
   ctx.save();
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
@@ -212,7 +265,7 @@ function drawPortrait(
   roundRect(ctx, px, py, pw, ph, r);
   ctx.clip();
   if (data.photo) {
-    drawCover(ctx, data.photo, px, py, pw, ph, data.transform);
+    drawPhoto(ctx, data.photo, px, py, pw, ph, data.transform);
   } else {
     ctx.fillStyle = COLORS.kraftDeep;
     ctx.fillRect(px, py, pw, ph);
@@ -260,8 +313,8 @@ function barcodeValue(data: CardData) {
  * If `logo` is supplied (public/brand/hhgoa-logo.png) it is used as-is; otherwise
  * the wordmark is drawn from the same type + motif system as everything else.
  */
-function drawBack(ctx: Ctx, logo: CanvasImageSource | null) {
-  const { x, y, w, h, r } = { ...CARD, x: CARD.x };
+function drawBack(ctx: Ctx, logo: CanvasImageSource | null, L: CardLayout) {
+  const { x, y, w, h, r } = L;
   cardShell(ctx, x, y, w, h, r);
 
   // thin inset border
@@ -323,6 +376,14 @@ function drawLockup(ctx: Ctx, cx: number, cy: number, maxW: number) {
 
 /* ------------------------------------------------------------------ entry */
 
+/** Aspect ratio of the supplied photo, or null when there isn't one yet. */
+export function aspectOf(photo: CanvasImageSource | null): number | null {
+  if (!photo) return null;
+  const w = (photo as HTMLImageElement).width;
+  const h = (photo as HTMLImageElement).height;
+  return w > 0 && h > 0 ? w / h : null;
+}
+
 export function renderIdCard(
   ctx: Ctx,
   env: RenderEnv,
@@ -330,13 +391,15 @@ export function renderIdCard(
   face: CardFace,
   logo: CanvasImageSource | null = null,
 ) {
+  // Both faces are laid out from the same geometry, so flipping never changes
+  // the card's silhouette even when a tall photo has grown it.
+  const L = cardLayout(aspectOf(data.photo), data.transform.fit);
   ctx.save();
   ctx.clearRect(0, 0, W, H);
-  poster(ctx);
-  if (face === "front") drawFront(ctx, env, data);
-  else drawBack(ctx, logo);
+  poster(ctx, L.y);
+  if (face === "front") drawFront(ctx, env, data, L);
+  else drawBack(ctx, logo, L);
   ctx.restore();
 }
 
 export const ID_CARD_SIZE = { w: W, h: H };
-export const CARD_RECT = { x: CARD.x, y: CARD.y, w: CARD.w, h: CARD.h };

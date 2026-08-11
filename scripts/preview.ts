@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { FONTS } from "../lib/brand";
 import { generateBuilderTitle } from "../lib/builderTitle";
 import { renderIdCard, ID_CARD_SIZE, type CardData } from "../lib/render/idcard";
+import { DEFAULT_TRANSFORM } from "../lib/render/primitives";
 import { renderPfp, PFP_SIZE } from "../lib/render/pfp";
 import type { RenderEnv } from "../lib/render/motifs";
 import type { Ctx } from "../lib/render/primitives";
@@ -77,12 +78,16 @@ const base: Omit<CardData, "photo"> = {
   stack: "Web3 / AI / Build",
   role: "Founding Engineer",
   builderTitle: generateBuilderTitle("Aryan Chauhan", "Web3 / AI / Build", "Founding Engineer"),
-  transform: { zoom: 1, offsetX: 0, offsetY: 0 },
+  transform: DEFAULT_TRANSFORM,
 };
+
+const COVER = { ...DEFAULT_TRANSFORM, fit: "cover" as const };
 
 const cases: { name: string; photo: CanvasImageSource | null; data?: Partial<CardData> }[] = [
   { name: "front-portrait", photo: testPhoto(900, 1400, "portrait 9:14") },
+  { name: "front-portrait-cover", photo: testPhoto(900, 1400, "portrait 9:14"), data: { transform: COVER } },
   { name: "front-landscape", photo: testPhoto(1600, 900, "landscape 16:9") },
+  { name: "front-ultrawide", photo: testPhoto(2000, 640, "ultrawide 25:8") },
   { name: "front-square-longname", photo: testPhoto(1000, 1000, "square"), data: { name: "Bhaskaracharya Venkataraman", stack: "Kubernetes / Terraform / Platform Engineering", role: "Staff Site Reliability Engineer" } },
   { name: "front-empty", photo: null, data: { name: "", stack: "", role: "", builderTitle: "Your Builder Title" } },
 ];
@@ -98,20 +103,25 @@ for (const c of cases) {
   write(`${c.name}.png`, canvas);
 }
 
-{
+for (const [label, photo] of [
+  ["back", null],
+  // Same tall photo as front-portrait: the back must share that silhouette.
+  ["back-portrait", testPhoto(900, 1400, "portrait 9:14")],
+] as const) {
   const canvas = createCanvas(ID_CARD_SIZE.w, ID_CARD_SIZE.h);
   const ctx = canvas.getContext("2d") as unknown as Ctx;
-  renderIdCard(ctx, env, { ...base, photo: null } as CardData, "back");
-  write("back.png", canvas);
+  renderIdCard(ctx, env, { ...base, photo } as CardData, "back");
+  write(`${label}.png`, canvas);
 }
 
-for (const [label, photo] of [
-  ["pfp-portrait", testPhoto(900, 1400, "portrait")],
-  ["pfp-landscape", testPhoto(1600, 900, "landscape")],
+for (const [label, photo, t] of [
+  ["pfp-portrait", testPhoto(900, 1400, "portrait"), DEFAULT_TRANSFORM],
+  ["pfp-portrait-cover", testPhoto(900, 1400, "portrait"), COVER],
+  ["pfp-landscape", testPhoto(1600, 900, "landscape"), DEFAULT_TRANSFORM],
 ] as const) {
   const canvas = createCanvas(PFP_SIZE.w, PFP_SIZE.h);
   const ctx = canvas.getContext("2d") as unknown as Ctx;
-  renderPfp(ctx, { photo, transform: { zoom: 1, offsetX: 0, offsetY: 0 } });
+  renderPfp(ctx, { photo, transform: t });
   write(`${label}.png`, canvas);
 }
 

@@ -140,9 +140,13 @@ export function sparkle(
  * Pink strap from the top edge + black starburst rivet + silver swivel hook,
  * ending just above `cardTop` so the clip visually enters the card's punch hole.
  */
-export function lanyard(ctx: Ctx, cx: number, cardTop: number, scale = 1) {
+export function lanyard(ctx: Ctx, cx: number, cardTop: number, requestedScale = 1) {
+  // The card's top moves as it grows for a tall photo. Shrink the hardware to
+  // fit rather than letting the strap collapse to nothing above it.
+  const scale = Math.min(requestedScale, cardTop / 300);
   const strapW = 92 * scale;
   const hookTop = cardTop - 214 * scale;
+  const strapLen = Math.max(1, hookTop + 22 * scale);
 
   // strap: near-parallel webbing tapering slightly into the swivel
   ctx.save();
@@ -164,14 +168,16 @@ export function lanyard(ctx: Ctx, cx: number, cardTop: number, scale = 1) {
   ctx.fill();
   ctx.restore();
 
-  // rivet decal on the strap
+  // Rivet decal, placed proportionally so it stays on the webbing whatever
+  // length the strap ends up being.
+  const rivetR = Math.min(26 * scale, strapLen * 0.26);
   ctx.save();
   ctx.fillStyle = COLORS.black;
-  starburst(ctx, cx, 58 * scale, 26 * scale, 10 * scale, 10, 0.3, 3);
+  starburst(ctx, cx, strapLen * 0.33, rivetR, rivetR * 0.38, 10, 0.3, 3);
   ctx.fill();
   ctx.fillStyle = COLORS.cream;
   ctx.beginPath();
-  ctx.arc(cx, 118 * scale, 9 * scale, 0, Math.PI * 2);
+  ctx.arc(cx, strapLen * 0.72, Math.min(9 * scale, strapLen * 0.09), 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = "rgba(0,0,0,0.35)";
   ctx.lineWidth = 2 * scale;

@@ -3,18 +3,19 @@ import { sparkle } from "./motifs";
 import {
   Ctx,
   devaBadge,
-  drawCover,
+  drawPhoto,
   font,
   grain,
   starburst,
   trackedWidth,
+  type PhotoTransform,
 } from "./primitives";
 
 const S = CANVAS.pfp.w; // square
 
 export type PfpData = {
   photo: CanvasImageSource | null;
-  transform: { zoom: number; offsetX: number; offsetY: number };
+  transform: PhotoTransform;
 };
 
 /**
@@ -39,7 +40,7 @@ export function renderPfp(ctx: Ctx, data: PfpData) {
   ctx.fillStyle = COLORS.green;
   ctx.fillRect(0, 0, S, S);
   if (data.photo) {
-    drawCover(ctx, data.photo, 0, 0, S, S, data.transform);
+    drawPhoto(ctx, data.photo, 0, 0, S, S, data.transform);
   } else {
     ctx.fillStyle = COLORS.greenLight;
     ctx.fillRect(0, 0, S, S);

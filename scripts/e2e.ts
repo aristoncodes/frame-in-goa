@@ -92,6 +92,10 @@ async function run() {
   await page.waitForTimeout(200);
   const box = await page.locator('[role="application"]').boundingBox();
   if (box) {
+    // "Whole photo" at zoom 1 has no overflow, so panning is correctly a no-op.
+    // Zoom in first: that is the state where dragging has something to move.
+    await page.getByRole("slider", { name: "Zoom" }).fill("1.6");
+    await page.waitForTimeout(300);
     const before = await canvasHash(page);
     const cx = box.x + box.width / 2;
     const cy = box.y + box.height / 2;
@@ -160,6 +164,47 @@ async function run() {
     await page.locator("canvas").first().screenshot(),
   );
   ok("landscape JPG accepted");
+
+  /* --------------------------------------------- whole photo, no cropping */
+  // corners.png carries a pure-magenta block in each of its four corners. In
+  // "Whole photo" mode every block must survive into the card; in "Fill frame"
+  // mode the 16:9 source is cropped to a narrower window and they are lost.
+  await page.setInputFiles('input[type="file"]', path.join(fixtures, "corners.png"));
+  await page.waitForTimeout(900);
+
+  const corners = () =>
+    page.evaluate(() => {
+      const c = document.querySelector("canvas") as HTMLCanvasElement;
+      const { data } = c.getContext("2d")!.getImageData(0, 0, c.width, c.height);
+      let n = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i] > 200 && data[i + 1] < 70 && data[i + 2] > 200) n++;
+      }
+      return n;
+    });
+
+  const whole = await corners();
+  whole > 1000
+    ? ok(`"Whole photo" crops nothing — all 4 corner markers survive (${whole}px)`)
+    : fail(`corner markers were cropped away in Whole photo mode (${whole}px)`);
+  fs.writeFileSync(
+    path.join(outDir, "fit-whole.png"),
+    await page.locator("canvas").first().screenshot(),
+  );
+
+  await page.getByRole("radio", { name: "Fill frame" }).click();
+  await page.waitForTimeout(600);
+  const filled = await corners();
+  filled < whole * 0.25
+    ? ok(`"Fill frame" crops to the window as expected (${filled}px)`)
+    : fail(`Fill frame did not crop (${filled}px vs ${whole}px)`);
+  fs.writeFileSync(
+    path.join(outDir, "fit-fill.png"),
+    await page.locator("canvas").first().screenshot(),
+  );
+
+  await page.getByRole("radio", { name: "Whole photo" }).click();
+  await page.waitForTimeout(400);
 
   /* ------------------------------------------------------ share to X */
   // Headless Chromium has no file-capable Web Share API, so this exercises the

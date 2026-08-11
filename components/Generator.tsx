@@ -1,13 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { EVENT } from "@/lib/brand";
 import { browserEnv, canvasToBlob, downloadBlob, ensureFonts, slugify } from "@/lib/browser";
 import { generateBuilderTitle } from "@/lib/builderTitle";
 import { ACCEPTED_TYPES, loadPhoto, UnsupportedImageError, type LoadedPhoto } from "@/lib/image";
 import {
+  DEFAULT_PFP_TRANSFORM,
+  DEFAULT_TRANSFORM,
   ID_CARD_SIZE,
-  PORTRAIT_ASPECT,
+  aspectOf,
+  previewAspect,
   renderIdCard,
   type CardData,
   type CardFace,
@@ -26,11 +37,21 @@ export default function Generator() {
   const [mode, setMode] = useState<Mode>("card");
   const [face, setFace] = useState<CardFace>("front");
   const [photo, setPhoto] = useState<LoadedPhoto | null>(null);
-  const [transform, setTransform] = useState<PhotoTransform>({
-    zoom: 1,
-    offsetX: 0,
-    offsetY: 0,
+  // One framing per mode: the crop that suits a badge window is not the crop
+  // that suits a circular avatar, and switching tabs shouldn't discard either.
+  const [transforms, setTransforms] = useState<Record<Mode, PhotoTransform>>({
+    card: DEFAULT_TRANSFORM,
+    pfp: DEFAULT_PFP_TRANSFORM,
   });
+  const transform = transforms[mode];
+  const setTransform = useCallback<Dispatch<SetStateAction<PhotoTransform>>>(
+    (update) =>
+      setTransforms((prev) => ({
+        ...prev,
+        [mode]: typeof update === "function" ? update(prev[mode]) : update,
+      })),
+    [mode],
+  );
   const [identity, setIdentity] = useState(IDENTITY_DEFAULT);
   const [titleSalt, setTitleSalt] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +123,7 @@ export default function Generator() {
     try {
       const loaded = await loadPhoto(file);
       setPhoto(loaded);
-      setTransform({ zoom: 1, offsetX: 0, offsetY: 0 });
+      setTransforms({ card: DEFAULT_TRANSFORM, pfp: DEFAULT_PFP_TRANSFORM });
     } catch (e) {
       setError(
         e instanceof UnsupportedImageError
@@ -158,7 +179,11 @@ export default function Generator() {
     }
   };
 
-  const aspect = mode === "card" ? PORTRAIT_ASPECT : 1;
+  // The crop viewport mirrors the frame the photo will actually land in: for the
+  // ID card that window sizes itself to the photo, so in "Whole photo" mode the
+  // preview, the card and the upload all share one aspect ratio.
+  const aspect =
+    mode === "card" ? previewAspect(aspectOf(photo?.source ?? null), transform.fit) : 1;
   const hasPhoto = Boolean(photo);
 
   return (
