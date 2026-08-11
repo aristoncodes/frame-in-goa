@@ -80,8 +80,11 @@ const PHOTO_X = RULE_X + 22;
 const SLOT_W = CONTENT_RIGHT - PHOTO_X;
 const SLOT_H = CHIP_COL_H;
 
-/** Aspect the crop UI presents, so its viewport is exactly the card's slot. */
-export const PHOTO_SLOT_ASPECT = SLOT_W / SLOT_H;
+/** Kraft mount between the slot's rule and the photo itself. */
+const MAT = 12;
+
+/** Aspect the crop UI presents, so its viewport is exactly the card's window. */
+export const PHOTO_SLOT_ASPECT = (SLOT_W - MAT * 2) / (SLOT_H - MAT * 2);
 
 /**
  * Fixed card height, budgeted for the worst case: a two-line name. The identity
@@ -276,16 +279,37 @@ function drawFront(ctx: Ctx, env: RenderEnv, data: CardData, L: CardLayout) {
   cardFooter(ctx, x + w / 2, y + h - 30, 15);
 }
 
-/** Rounded-square portrait window with a kraft border and inner shadow. */
+/**
+ * The portrait window: a clean kraft mount, then the photo inset within it.
+ * The mount carries the paper colour so the picture itself needs no tinting —
+ * it reads as mounted on the card rather than pasted onto it.
+ */
 function drawPortrait(
   ctx: Ctx,
   data: CardData,
-  px: number,
-  py: number,
-  pw: number,
-  ph: number,
+  sx: number,
+  sy: number,
+  sw: number,
+  sh: number,
 ) {
-  const r = 18;
+  const outerR = 20;
+  const px = sx + MAT;
+  const py = sy + MAT;
+  const pw = sw - MAT * 2;
+  const ph = sh - MAT * 2;
+  const r = outerR - MAT * 0.5;
+
+  // kraft mount, clean of the card's grain so the margin reads crisply
+  ctx.save();
+  ctx.fillStyle = COLORS.kraft;
+  roundRect(ctx, sx, sy, sw, sh, outerR);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(58,42,26,0.42)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+
+  // photo, untinted
   ctx.save();
   roundRect(ctx, px, py, pw, ph, r);
   ctx.clip();
@@ -294,7 +318,6 @@ function drawPortrait(
   } else {
     ctx.fillStyle = COLORS.kraftDeep;
     ctx.fillRect(px, py, pw, ph);
-    // placeholder bust
     ctx.fillStyle = "rgba(58,42,26,0.28)";
     ctx.beginPath();
     ctx.arc(px + pw / 2, py + ph * 0.36, ph * 0.19, 0, Math.PI * 2);
@@ -303,20 +326,12 @@ function drawPortrait(
     ctx.ellipse(px + pw / 2, py + ph * 1.02, ph * 0.36, ph * 0.42, 0, Math.PI, 0);
     ctx.fill();
   }
-  const inner = ctx.createLinearGradient(px, py, px, py + ph);
-  inner.addColorStop(0, "rgba(0,0,0,0.16)");
-  inner.addColorStop(0.35, "rgba(0,0,0,0)");
-  ctx.fillStyle = inner;
-  ctx.fillRect(px, py, pw, ph);
   ctx.restore();
 
+  // hairline where the photo meets the mount
   ctx.save();
   roundRect(ctx, px, py, pw, ph, r);
-  ctx.strokeStyle = COLORS.kraftDeep;
-  ctx.lineWidth = 5;
-  ctx.stroke();
-  roundRect(ctx, px - 3.5, py - 3.5, pw + 7, ph + 7, r + 3);
-  ctx.strokeStyle = "rgba(58,42,26,0.35)";
+  ctx.strokeStyle = "rgba(58,42,26,0.5)";
   ctx.lineWidth = 2;
   ctx.stroke();
   ctx.restore();

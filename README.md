@@ -102,12 +102,12 @@ npm run preview && npx tsx scripts/check-card-size.mts
 the largest size that fits both. A single unbroken word that won't fit is shrunk
 to a 19px floor and then ellipsised. The card can't overflow, and it can't grow.
 
-#### Photo tone
+#### The photo mount
 
-`kraft` warms and slightly desaturates the photo so it sits *in* the card's paper
-rather than on top of it, the way the reference badge's portrait does. `original`
-leaves the upload as shot. The card defaults to kraft, the PFP to original — an
-avatar is the person's own picture and shouldn't be recoloured by default.
+The portrait sits on a **kraft mount** — a 12px margin of card paper inside the
+window's rule, painted clean of the card's grain so the margin reads crisply.
+The picture itself is left exactly as uploaded: the paper colour lives in the
+mount, so nothing needs tinting to tie the photo to the card.
 
 #### Nothing gets cut
 

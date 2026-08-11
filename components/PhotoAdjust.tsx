@@ -179,35 +179,6 @@ export default function PhotoAdjust({ photo, aspect, round, transform, onChange 
         ))}
       </div>
 
-      <div
-        role="radiogroup"
-        aria-label="Photo tone"
-        className="flex rounded-full border border-[var(--cream)]/15 bg-black/25 p-1 text-[11px]"
-      >
-        {(
-          [
-            ["kraft", "Kraft tone", "Warmed to sit in the card's paper"],
-            ["original", "Original", "Your photo's own colours"],
-          ] as const
-        ).map(([value, label, hint]) => (
-          <button
-            key={value}
-            type="button"
-            role="radio"
-            aria-checked={transform.tone === value}
-            title={hint}
-            onClick={() => onChange((prev) => ({ ...prev, tone: value }))}
-            className={`flex-1 rounded-full px-3 py-1.5 font-bold tracking-wide transition ${
-              transform.tone === value
-                ? "bg-[var(--kraft)] text-[var(--ink)]"
-                : "text-[var(--cream)]/65 hover:text-[var(--cream)]"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
       <label className="flex items-center gap-3 text-xs font-semibold tracking-wide text-[var(--cream)]/70">
         ZOOM
         <input

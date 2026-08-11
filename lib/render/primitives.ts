@@ -235,23 +235,12 @@ export function devaBadge(
  */
 export type PhotoFit = "contain" | "cover";
 
-/**
- * `kraft` warms and slightly desaturates the photo so it sits in the card's
- * paper rather than on top of it — the treatment the reference badge uses.
- * `original` leaves the upload exactly as shot.
- */
-export type PhotoTone = "kraft" | "original";
-
 export type PhotoTransform = {
   zoom: number;
   offsetX: number;
   offsetY: number;
   fit: PhotoFit;
-  tone: PhotoTone;
 };
-
-/** Warm duotone-ish grade. Kept subtle: a full sepia reads dated, not designed. */
-const KRAFT_GRADE = "sepia(0.42) saturate(0.88) contrast(1.06) brightness(1.02)";
 
 /**
  * The ID card's photo window resizes to the picture, so "whole photo" there is
@@ -262,7 +251,6 @@ export const DEFAULT_TRANSFORM: PhotoTransform = {
   offsetX: 0,
   offsetY: 0,
   fit: "contain",
-  tone: "kraft",
 };
 
 /**
@@ -275,8 +263,6 @@ export const DEFAULT_PFP_TRANSFORM: PhotoTransform = {
   offsetX: 0,
   offsetY: 0,
   fit: "cover",
-  // A profile picture is the person's own avatar; don't recolour it by default.
-  tone: "original",
 };
 
 /** Geometry of the drawn image for a given frame + transform. */
@@ -323,14 +309,12 @@ export function drawPhoto(
   h: number,
   transform: PhotoTransform = DEFAULT_TRANSFORM,
 ) {
-  const grade = transform.tone === "kraft" ? KRAFT_GRADE : "";
-
   if (transform.fit === "contain") {
     const bg = photoRect(img, x, y, w, h, { ...transform, fit: "cover", zoom: 1.18 });
     ctx.save();
     // Chromium, Safari and @napi-rs/canvas all support ctx.filter; if a runtime
     // ever doesn't, the backdrop simply renders unblurred rather than breaking.
-    ctx.filter = `blur(${Math.max(8, Math.min(w, h) * 0.06)}px) ${grade}`.trim();
+    ctx.filter = `blur(${Math.max(8, Math.min(w, h) * 0.06)}px)`;
     ctx.drawImage(img, bg.dx, bg.dy, bg.dw, bg.dh);
     ctx.filter = "none";
     // knock the backdrop back so the real photo stays the subject
@@ -340,10 +324,7 @@ export function drawPhoto(
   }
 
   const r = photoRect(img, x, y, w, h, transform);
-  ctx.save();
-  if (grade) ctx.filter = grade;
   ctx.drawImage(img, r.dx, r.dy, r.dw, r.dh);
-  ctx.restore();
 }
 
 /** @deprecated use drawPhoto — kept so callers that only ever want cover read clearly. */
@@ -354,9 +335,9 @@ export function drawCover(
   y: number,
   w: number,
   h: number,
-  transform: Omit<PhotoTransform, "fit" | "tone"> = { zoom: 1, offsetX: 0, offsetY: 0 },
+  transform: Omit<PhotoTransform, "fit"> = { zoom: 1, offsetX: 0, offsetY: 0 },
 ) {
-  drawPhoto(ctx, img, x, y, w, h, { ...transform, fit: "cover", tone: "original" });
+  drawPhoto(ctx, img, x, y, w, h, { ...transform, fit: "cover" });
 }
 
 export function clamp(v: number, lo: number, hi: number) {
