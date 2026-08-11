@@ -590,17 +590,26 @@ export function renderIdCard(
   poster(ctx, assets);
   if (face === "front") drawFront(ctx, env, data, L, assets);
   else drawBack(ctx, env, L, assets);
-  // The clip is threaded *through* the punch slot, not laid on top of the card:
-  // it shows above the card's top edge and again inside the slot, while the
-  // strip of kraft between them covers it — which is what selling "through"
-  // rather than "on top of" depends on.
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(0, 0, W, L.y);
-  addRoundRect(ctx, L.punch.x, L.punch.y, L.punch.w, L.punch.h, L.punch.h / 2);
-  ctx.clip();
-  lanyard(ctx, W / 2, L.y, 1.45, assets.clip, assets.lanyard);
-  ctx.restore();
+  // Front only. The back is the card by itself — hardware there reads as a
+  // sticker, since nothing on that face is hanging from anything.
+  if (face === "front") {
+    // Threaded *through* the punch slot rather than laid on the card: visible
+    // above the card's top edge and again inside the slot, with the strip of
+    // kraft between them covering it.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, W, L.y);
+    addRoundRect(ctx, L.punch.x, L.punch.y, L.punch.w, L.punch.h, L.punch.h / 2);
+    ctx.clip();
+    // Hung with a slight lean, pivoting on the slot the way it actually would,
+    // so the foot stays in the hole while the strap swings — a dead-centre
+    // vertical reads as a sticker rather than something bearing weight.
+    ctx.translate(L.punch.x + L.punch.w / 2, L.punch.y + L.punch.h / 2);
+    ctx.rotate(-0.035);
+    ctx.translate(-(L.punch.x + L.punch.w / 2), -(L.punch.y + L.punch.h / 2));
+    lanyard(ctx, W / 2, L.y, 1.45, assets.clip, assets.lanyard);
+    ctx.restore();
+  }
   ctx.restore();
 }
 

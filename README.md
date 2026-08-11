@@ -257,6 +257,17 @@ browser cooperating.
 `buildCaption()` is the single source of the caption, so **#FrameInGoa** can't be
 dropped by a caller, and the panel flags it if the user deletes it by hand.
 
+### Lanyard placement
+
+The clip appears on the **front face only**. Nothing on the back is hanging from
+anything, so hardware there reads as a sticker.
+
+It is clipped to two regions — above the card's top edge, and the punch slot —
+so the strip of kraft between them occludes it and the hook reads as threaded
+*through* the hole. The assembly leans a few degrees, pivoting on the slot the
+way it actually would: the foot stays in the hole while the strap swings. Dead
+centre and vertical looks applied rather than load-bearing.
+
 ### Using a photo of the real lanyard
 
 Canvas paths can approximate the clip's form but not its material. If you have a
