@@ -95,6 +95,8 @@ const cases: { name: string; photo: CanvasImageSource | null; data?: Partial<Car
   { name: "name-longer", photo: testPhoto(1200, 1500, "3:4"), data: { name: "Venkatanarasimharajuvaripeta Srinivasulu", stack: "Rust", role: "Systems" } },
   { name: "name-unbroken", photo: testPhoto(1200, 1500, "3:4"), data: { name: "Bompelliwarsaikiranvenkateswarlu", stack: "Rust", role: "Systems" } },
   { name: "tone-original", photo: testPhoto(1200, 1500, "3:4"), data: { transform: { ...DEFAULT_TRANSFORM, tone: "original" as const } } },
+  // The size the user reported breaking the layout.
+  { name: "user-352x290", photo: testPhoto(352, 290, "352x290") },
 ];
 
 for (const c of cases) {

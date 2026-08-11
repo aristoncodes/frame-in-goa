@@ -23,6 +23,7 @@ Other scripts:
 ```bash
 npm run preview      # render every output to scripts/out/*.png (no browser needed)
 npm run e2e          # drive the real flow in a phone-sized Chromium
+npm run check:size   # assert the card renders at one fixed size everywhere
 ```
 
 `npm run e2e` needs the app running and a fixture directory containing
@@ -44,13 +45,13 @@ asset — so text stays live and the output is crisp at any resolution.
 ```
 lib/brand.ts            colour / type / event tokens (single source of truth)
 lib/render/primitives   starbursts, squiggles, paper grain, tracked text,
-                        text auto-fit, cover-fit with focal point, गोवा badge
+                        text auto-fit, contain/cover photo fitting, गोवा badge
 lib/render/motifs       poster backdrop, mirrored headline, lanyard (strap,
                         D-ring, swivel barrel, bolt snap), icon chips,
                         CODE128 barcode, card shell
 lib/render/idcard       front + back composition (1080×1350)
 lib/render/pfp          profile-picture ring (1080×1080)
-lib/builderTitle        builder-title generation + which icon chips light up
+lib/builderTitle        builder-title generation
 ```
 
 The renderers take a plain canvas 2D context, so the **exact same code** runs in
@@ -73,14 +74,32 @@ loads the same files.
 - **Drag to reposition, pinch/scroll to zoom** in a viewport that matches the
   destination frame exactly.
 
+#### The card is one fixed size
+
+**Every card renders at exactly the same dimensions**, whatever photo goes in and
+however long the name is. Nothing in the layout resizes the card.
+
+That constraint drives two things. The photo goes into a **fixed slot**, and the
+identity block is **anchored to its bottom** against the barcode row — so a name
+that wraps to two lines grows *upward* into the air beneath the photo instead of
+pushing the card taller.
+
+`scripts/check-card-size.mts` enforces it: it measures the kraft card's bounding
+box in every rendered poster and fails if any two differ. It counts only rows
+that are mostly kraft, so stray kraft-ish pixels elsewhere in the poster can't
+mask a real change.
+
+```bash
+npm run preview && npx tsx scripts/check-card-size.mts
+```
+
 #### Long names
 
 `layoutName()` sets the name at 44px when it fits. A long one
 ("Bompelliwar Saikiran") gets the full card width; longer still
 ("Venkatanarasimharajuvaripeta Srinivasulu") **wraps onto two balanced lines** at
-the largest size that fits both, and the card grows to take them — front and
-back together, so the silhouette still matches. A single unbroken word that
-won't fit is shrunk to a 19px floor and then ellipsised. The card can't overflow.
+the largest size that fits both. A single unbroken word that won't fit is shrunk
+to a 19px floor and then ellipsised. The card can't overflow, and it can't grow.
 
 #### Photo tone
 
@@ -91,17 +110,16 @@ avatar is the person's own picture and shouldn't be recoloured by default.
 
 #### Nothing gets cut
 
-The ID card's photo window **resizes itself to the uploaded photo** — it takes
-the picture's own aspect ratio, bounded by the space on the card. A 9:16 selfie,
-a 4:3 snap and a 25:8 panorama each land whole: no crop *and* no letterbox bars.
-The card grows or shrinks to suit, and the back face uses the same geometry so
-flipping never changes the card's silhouette.
+A 9:16 selfie, a 4:3 snap and a 25:8 panorama all land **whole** — nothing is
+cropped away. Since the card can't resize around them, whatever the slot's own
+aspect leaves over is filled with a blurred, over-scaled copy of the same photo,
+so the frame is always fully painted rather than showing letterbox bars.
 
 Two framing modes, toggled per generator:
 
 | Mode | Behaviour | Default in |
 | --- | --- | --- |
-| **Whole photo** (`contain`) | Nothing is cropped. On the card the window matches the photo exactly; in the circular PFP the remainder is filled with a blurred copy of the same photo rather than empty bars. | Builder ID card |
+| **Whole photo** (`contain`) | Nothing is cropped; the remainder of the frame is filled with a blurred copy of the same photo. | Builder ID card |
 | **Fill frame** (`cover`) | Fills the frame edge to edge and crops the overflow; drag/zoom put the crop under the user's control. | PFP frame |
 
 The PFP defaults to filling because a circle cannot take a rectangle's aspect

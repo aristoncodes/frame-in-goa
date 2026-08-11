@@ -13,7 +13,6 @@ import {
   RenderEnv,
 } from "./motifs";
 import {
-  clamp,
   Ctx,
   devaBadge,
   drawPhoto,
@@ -22,7 +21,6 @@ import {
   font,
   roundRect,
   trackedText,
-  type PhotoFit,
   type PhotoTransform,
 } from "./primitives";
 
@@ -58,14 +56,7 @@ const CHIP_COL_H = CHIP * 5 + CHIP_GAP * 4;
 const TITLE_SIZE = 66;
 /** Card top → top of the photo/icon row. */
 const HEADER_H = 98 + Math.round(TITLE_SIZE * 0.96) + 22;
-/** Identity block: gap under the photo, then the four text lines. */
-const IDENTITY_H = 46 + 130;
-
-const NAME_MAX = 44;
-/** Below this, a two-line name beats shrinking further. */
-const NAME_WRAP_BELOW = 30;
-const NAME_MIN = 19;
-/** Bottom of the content block → card bottom (barcode row + footer). */
+/** Bottom of the identity block → card bottom (barcode row + footer). */
 const FOOTER_H = 150;
 
 const CARD_X = (W - CARD_W) / 2;
@@ -79,33 +70,32 @@ const RULE_X = CONTENT_LEFT + CHIP + 22;
  */
 const PHOTO_X = RULE_X + 22;
 
-const PHOTO_MAX_W = CONTENT_RIGHT - PHOTO_X;
-// Capped so a 9:16 phone selfie still leaves the lanyard room above the card and
-// the GOA 2026 wordmark room below it.
-const PHOTO_MAX_H = 340;
-/** Window used in `cover` mode — the reference badge's landscape crop. */
-const PHOTO_COVER_H = CHIP_COL_H;
+/**
+ * The photo slot is a **fixed window** — the card is one size, always, so it
+ * cannot resize itself around the picture. `contain` fits the whole photo inside
+ * this slot at its own aspect ratio (nothing cropped, the remainder filled with
+ * a blurred copy of the photo rather than empty bars); `cover` fills the slot and
+ * crops. Its height matches the chip column so the row reads as one band.
+ */
+const SLOT_W = CONTENT_RIGHT - PHOTO_X;
+const SLOT_H = CHIP_COL_H;
+
+/** Aspect the crop UI presents, so its viewport is exactly the card's slot. */
+export const PHOTO_SLOT_ASPECT = SLOT_W / SLOT_H;
 
 /**
- * The photo window sizes itself to the uploaded photo.
- *
- * In `contain` mode it takes the photo's own aspect ratio (bounded by the space
- * available on the card), so the picture fits *exactly*: nothing is cropped and
- * there are no letterbox bars either. In `cover` mode the window is the fixed
- * landscape crop from the reference badge and the photo fills it.
+ * Fixed card height, budgeted for the worst case: a two-line name. The identity
+ * block is anchored to its bottom, so a one-line name simply sits lower with
+ * more air above it rather than shrinking the card.
  */
-export function photoWindow(photoAspect: number | null, fit: PhotoFit) {
-  if (!photoAspect || !isFinite(photoAspect) || photoAspect <= 0 || fit === "cover") {
-    return { w: PHOTO_MAX_W, h: PHOTO_COVER_H };
-  }
-  let w = PHOTO_MAX_W;
-  let h = w / photoAspect;
-  if (h > PHOTO_MAX_H) {
-    h = PHOTO_MAX_H;
-    w = h * photoAspect;
-  }
-  return { w, h };
-}
+const IDENTITY_RESERVE = 216;
+const CARD_H = HEADER_H + SLOT_H + IDENTITY_RESERVE + FOOTER_H;
+const CARD_Y = 1186 - CARD_H;
+
+const NAME_MAX = 44;
+/** Below this, a two-line name beats shrinking further. */
+const NAME_WRAP_BELOW = 30;
+const NAME_MIN = 19;
 
 export type NameLayout = { lines: string[]; size: number; lineHeight: number };
 
@@ -142,32 +132,16 @@ export function layoutName(ctx: Ctx, raw: string, maxWidth = NAME_WIDTH): NameLa
   return best && best.size > one ? best : single;
 }
 
-/**
- * Full card geometry for a given photo. Both faces are laid out from this, so a
- * card that grew for a tall portrait keeps the same silhouette front and back.
- */
-export function cardLayout(
-  photoAspect: number | null,
-  fit: PhotoFit,
-  name: NameLayout | null = null,
-) {
-  const photo = photoWindow(photoAspect, fit);
-  // A wrapped name pushes the rest of the block down; the card grows with it.
-  const extraName = name ? (name.lines.length - 1) * name.lineHeight : 0;
-  // The chip column sits beside the photo and runs on past it, so the content
-  // block is whichever is taller: the chips, or the photo plus its text.
-  const contentH = Math.max(CHIP_COL_H, photo.h + IDENTITY_H + extraName);
-  const h = HEADER_H + contentH + FOOTER_H;
-  // Anchor the card's bottom near the GOA 2026 wordmark, then clamp the top so
-  // a tall card never rides up into the mirrored headline.
-  const y = clamp(1186 - h, 336, 404);
-  return { x: CARD_X, y, w: CARD_W, h, r: CARD_R, contentH, photo, name };
-}
-
-/** Aspect the crop UI should present so its viewport matches the card exactly. */
-export function previewAspect(photoAspect: number | null, fit: PhotoFit) {
-  const win = photoWindow(photoAspect, fit);
-  return win.w / win.h;
+/** One fixed geometry, shared by both faces and by every photo. */
+export function cardLayout() {
+  return {
+    x: CARD_X,
+    y: CARD_Y,
+    w: CARD_W,
+    h: CARD_H,
+    r: CARD_R,
+    photo: { x: PHOTO_X, y: CARD_Y + HEADER_H, w: SLOT_W, h: SLOT_H },
+  };
 }
 
 /* ------------------------------------------------------------------ poster */
@@ -219,32 +193,37 @@ function drawFront(ctx: Ctx, env: RenderEnv, data: CardData, L: CardLayout) {
   /* icon column + photo ------------------------------------------------ */
   iconColumn(ctx, left, rowTop, CHIP, CHIP_GAP);
 
-  // hairline rule beside the chips, running the depth of the photo
+  // hairline rule beside the chips, spanning the row
   ctx.save();
   ctx.strokeStyle = "rgba(58,42,26,0.45)";
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(RULE_X, rowTop + 2);
-  ctx.lineTo(RULE_X, rowTop + Math.max(CHIP_COL_H, L.photo.h) - 2);
+  ctx.lineTo(RULE_X, rowTop + L.photo.h - 2);
   ctx.stroke();
   ctx.restore();
 
-  drawPortrait(ctx, data, PHOTO_X, rowTop, L.photo.w, L.photo.h);
+  drawPortrait(ctx, data, L.photo.x, L.photo.y, L.photo.w, L.photo.h);
 
   /* identity block ----------------------------------------------------- */
+  // Anchored to its bottom against the fixed meta row, so a name that wraps to
+  // two lines grows upward into the air under the photo instead of resizing the
+  // card. The block always ends at the same y.
   const metaTop = y + h - 118;
-  let cy = rowTop + L.photo.h + 52;
+  const nameLayout = layoutName(ctx, data.name, colW);
+  const wrapExtra = (nameLayout.lines.length - 1) * nameLayout.lineHeight;
+  let cy = metaTop - 30 - 126 - wrapExtra;
+
   ctx.save();
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = COLORS.ink;
 
-  const nameLayout = L.name ?? layoutName(ctx, data.name, colW);
   nameLayout.lines.forEach((line, i) => {
     ctx.font = font(FONTS.display, nameLayout.size, 900);
     trackedText(ctx, ellipsize(ctx, line, colW), col, cy + i * nameLayout.lineHeight, 0.5);
   });
-  cy += (nameLayout.lines.length - 1) * nameLayout.lineHeight + 34;
+  cy += wrapExtra + 34;
 
   // STACK: <input>
   const labelSize = 18;
@@ -532,14 +511,6 @@ function drawLockup(ctx: Ctx, cx: number, cy: number, maxW: number) {
 
 /* ------------------------------------------------------------------ entry */
 
-/** Aspect ratio of the supplied photo, or null when there isn't one yet. */
-export function aspectOf(photo: CanvasImageSource | null): number | null {
-  if (!photo) return null;
-  const w = (photo as HTMLImageElement).width;
-  const h = (photo as HTMLImageElement).height;
-  return w > 0 && h > 0 ? w / h : null;
-}
-
 export function renderIdCard(
   ctx: Ctx,
   env: RenderEnv,
@@ -549,11 +520,7 @@ export function renderIdCard(
 ) {
   // Both faces are laid out from the same geometry, so flipping never changes
   // the card's silhouette even when a tall photo has grown it.
-  // Measured before layout, because a wrapped name changes the card's height.
-  ctx.save();
-  const name = layoutName(ctx, data.name);
-  ctx.restore();
-  const L = cardLayout(aspectOf(data.photo), data.transform.fit, name);
+  const L = cardLayout();
   ctx.save();
   ctx.clearRect(0, 0, W, H);
   poster(ctx);

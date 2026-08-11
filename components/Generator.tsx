@@ -17,8 +17,7 @@ import {
   DEFAULT_PFP_TRANSFORM,
   DEFAULT_TRANSFORM,
   ID_CARD_SIZE,
-  aspectOf,
-  previewAspect,
+  PHOTO_SLOT_ASPECT,
   renderIdCard,
   type CardData,
   type CardFace,
@@ -179,11 +178,9 @@ export default function Generator() {
     }
   };
 
-  // The crop viewport mirrors the frame the photo will actually land in: for the
-  // ID card that window sizes itself to the photo, so in "Whole photo" mode the
-  // preview, the card and the upload all share one aspect ratio.
-  const aspect =
-    mode === "card" ? previewAspect(aspectOf(photo?.source ?? null), transform.fit) : 1;
+  // The crop viewport is exactly the frame the photo lands in: the card's fixed
+  // photo slot, or the PFP's circle.
+  const aspect = mode === "card" ? PHOTO_SLOT_ASPECT : 1;
   const hasPhoto = Boolean(photo);
 
   return (

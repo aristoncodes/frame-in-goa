@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "preview": "tsx scripts/preview.ts",
-    "e2e": "tsx scripts/e2e.ts"
+    "e2e": "tsx scripts/e2e.ts",
+    "check:size": "tsx scripts/check-card-size.mts"
   },
   "dependencies": {
     "@vercel/blob": "^2.7.0",
