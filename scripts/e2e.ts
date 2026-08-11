@@ -209,16 +209,35 @@ async function run() {
   /* ------------------------------------------------------ share to X */
   // Headless Chromium has no file-capable Web Share API, so this exercises the
   // link/download fallback — the path desktop users get.
-  const popup = ctx.waitForEvent("page", { timeout: 15000 });
-  const shareDl = page.waitForEvent("download", { timeout: 15000 }).catch(() => null);
+  const popup = ctx.waitForEvent("page", { timeout: 20000 });
+  const shareDl = page.waitForEvent("download", { timeout: 20000 }).catch(() => null);
   await page.getByRole("button", { name: /Share to X/i }).click();
-  const intentUrl = (await popup).url();
-  const params = new URL(intentUrl).searchParams;
+  const tab = await popup;
+  // The tab is opened blank inside the click and navigated once the upload
+  // finishes, so wait for the real destination rather than reading about:blank.
+  await tab.waitForURL(/(twitter|x)\.com\/.*intent/, { timeout: 20000 });
+  const intentUrl = tab.url();
+  // A signed-out browser gets bounced to X's login, which carries the original
+  // intent in redirect_after_login. Unwrap that so the caption is checked either
+  // way rather than only when a session happens to exist.
+  const resolveIntent = (raw: string) => {
+    const u = new URL(raw);
+    if (u.pathname.includes("/intent/tweet")) return u.searchParams;
+    const nested = u.searchParams.get("redirect_after_login");
+    if (nested) return new URL(nested, "https://x.com").searchParams;
+    return u.searchParams;
+  };
+  const params = resolveIntent(intentUrl);
   const text = params.get("text") ?? "";
 
-  // twitter.com/intent redirects to x.com/intent — accept either landing host.
-  /^https:\/\/(twitter|x)\.com\/intent\/tweet/.test(intentUrl)
-    ? ok(`share opens an X intent (${new URL(intentUrl).host})`)
+  // twitter.com/intent redirects to x.com, and a signed-out session lands on
+  // the login page that wraps it — both are the intent being reached.
+  /^https:\/\/(twitter|x)\.com\//.test(intentUrl) && params.get("text")
+    ? ok(
+        `share reaches an X intent (${new URL(intentUrl).host}${
+          intentUrl.includes("redirect_after_login") ? ", via login" : ""
+        })`,
+      )
     : fail(`unexpected share target: ${intentUrl}`);
   text.includes("#FrameInGoa")
     ? ok("pre-filled caption contains #FrameInGoa (exact casing)")
@@ -236,6 +255,24 @@ async function run() {
     : downloaded
       ? ok("no blob storage: fell back to downloading the PNG to attach")
       : fail("share neither produced a share link nor delivered the image");
+
+  /* ------------------------------------- share with popups blocked */
+  // Headless Chromium never blocks popups, so the blocked path has to be forced.
+  // Without this the regression that broke Share to X on desktop is invisible.
+  await page.evaluate(() => {
+    (window as unknown as { open: () => Window | null }).open = () => null;
+  });
+  await page.getByRole("button", { name: /Share to X/i }).click();
+  const rescue = page.getByRole("link", { name: /Open X with your post/i });
+  try {
+    await rescue.waitFor({ state: "visible", timeout: 20000 });
+    const href = (await rescue.getAttribute("href")) ?? "";
+    /(twitter|x)\.com\/intent/.test(href) && href.includes("FrameInGoa")
+      ? ok("popup blocked: offers a working link to X instead of failing")
+      : fail(`rescue link is wrong: ${href}`);
+  } catch {
+    fail("popup blocked and no rescue link was offered");
+  }
 
   /* ------------------------------------------------- horizontal overflow */
   const overflow = await page.evaluate(

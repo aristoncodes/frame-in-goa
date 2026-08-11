@@ -207,14 +207,26 @@ that salts the seed.
 ## Share to X
 
 1. **Web Share API** with the PNG attached — what most phones get.
-2. Otherwise the PNG is stored in Vercel Blob and X opens with a link to
-   `/s/<id>`, whose `og:image` / `twitter:image` **is the generated graphic**
-   (`summary_large_image`), so the preview is never a blank thumbnail.
-3. If blob storage isn't configured, the PNG downloads and X still opens with the
-   caption pre-filled to attach it to.
+2. Otherwise X opens with the caption pre-filled and a link to `/s/<id>`, whose
+   `og:image` / `twitter:image` **is the generated graphic**
+   (`summary_large_image`), so the preview is never a blank thumbnail. The PNG is
+   also saved, in case an image post is preferred over the link preview.
+3. If blob storage isn't configured the same thing happens, minus the hosted
+   link.
 
 Every path builds its caption through `buildCaption()`, so **#FrameInGoa** can't
 be dropped.
+
+**The tab is opened synchronously inside the click**, then navigated once the
+upload finishes. Opening it afterwards costs the user-activation and browsers
+silently block it as a popup — which is exactly how this broke on desktop. Note
+that `window.open` returns `null` when passed `noopener`, so that feature can't
+be used here; the opener is severed after navigating instead. If the tab is
+blocked anyway, a real link to X is rendered rather than failing.
+
+Headless Chromium never blocks popups, so `scripts/e2e.ts` forces the blocked
+path by stubbing `window.open`. It also unwraps X's `redirect_after_login`, since
+a signed-out browser lands on the login page carrying the intent.
 
 ## Live
 
