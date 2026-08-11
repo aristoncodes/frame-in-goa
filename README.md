@@ -216,11 +216,20 @@ that salts the seed.
 Every path builds its caption through `buildCaption()`, so **#FrameInGoa** can't
 be dropped.
 
+## Live
+
+**https://frame-in-goa-mauve.vercel.app**
+
 ## Deploying
 
 ```bash
 npx vercel login
-npx vercel --prod
+npx vercel --prod --yes
+
+# share links with real OG previews
+npx vercel blob create-store hhgoa-shares --access public --yes
+npx vercel env add NEXT_PUBLIC_SITE_URL production
+npx vercel --prod --yes    # redeploy so the token is picked up
 ```
 
 ### Environment

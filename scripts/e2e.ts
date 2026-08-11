@@ -226,9 +226,16 @@ async function run() {
   params.get("url")
     ? ok(`intent carries a link: ${params.get("url")}`)
     : fail("intent has no url param");
-  (await shareDl)
-    ? ok("fallback also hands the user the PNG to attach")
-    : fail("fallback did not deliver the image file");
+  // Two valid outcomes. With blob storage configured the intent carries a /s/
+  // share link whose OG image is the card; without it, the PNG is downloaded so
+  // the user can attach it by hand. Exactly one should happen.
+  const sharedByLink = /\/s\/[a-z0-9]+$/.test(params.get("url") ?? "");
+  const downloaded = Boolean(await shareDl);
+  sharedByLink
+    ? ok("shared via a link whose preview is the graphic")
+    : downloaded
+      ? ok("no blob storage: fell back to downloading the PNG to attach")
+      : fail("share neither produced a share link nor delivered the image");
 
   /* ------------------------------------------------- horizontal overflow */
   const overflow = await page.evaluate(
