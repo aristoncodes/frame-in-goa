@@ -171,6 +171,10 @@ async function run() {
   // mode the 16:9 source is cropped to a narrower window and they are lost.
   await page.setInputFiles('input[type="file"]', path.join(fixtures, "corners.png"));
   await page.waitForTimeout(900);
+  // This checks cropping, not grading — the kraft grade would shift the marker
+  // colour out of the detection window and mask a real regression.
+  await page.getByRole("radio", { name: "Original" }).click();
+  await page.waitForTimeout(500);
 
   const corners = () =>
     page.evaluate(() => {

@@ -90,6 +90,11 @@ const cases: { name: string; photo: CanvasImageSource | null; data?: Partial<Car
   { name: "front-ultrawide", photo: testPhoto(2000, 640, "ultrawide 25:8") },
   { name: "front-square-longname", photo: testPhoto(1000, 1000, "square"), data: { name: "Bhaskaracharya Venkataraman", stack: "Kubernetes / Terraform / Platform Engineering", role: "Staff Site Reliability Engineer" } },
   { name: "front-empty", photo: null, data: { name: "", stack: "", role: "", builderTitle: "Your Builder Title" } },
+  // Long-name stress cases
+  { name: "name-long", photo: testPhoto(1200, 1500, "3:4"), data: { name: "Bompelliwar Saikiran", stack: "Go, Postgres, Kafka", role: "Backend Engineer" } },
+  { name: "name-longer", photo: testPhoto(1200, 1500, "3:4"), data: { name: "Venkatanarasimharajuvaripeta Srinivasulu", stack: "Rust", role: "Systems" } },
+  { name: "name-unbroken", photo: testPhoto(1200, 1500, "3:4"), data: { name: "Bompelliwarsaikiranvenkateswarlu", stack: "Rust", role: "Systems" } },
+  { name: "tone-original", photo: testPhoto(1200, 1500, "3:4"), data: { transform: { ...DEFAULT_TRANSFORM, tone: "original" as const } } },
 ];
 
 for (const c of cases) {

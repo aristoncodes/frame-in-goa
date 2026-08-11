@@ -173,16 +173,18 @@ export function lanyard(ctx: Ctx, cx: number, cardTop: number, requestedScale = 
   // fit rather than letting the strap collapse to nothing above it.
   const scale = Math.min(requestedScale, cardTop / 300);
   const strapW = 76 * scale;
-  const hookTop = cardTop - 214 * scale;
-  const strapLen = Math.max(1, hookTop + 22 * scale);
+  // Assembly runs ~202 units from the loop's top bar to the foot of the hook;
+  // seat it so that foot lands inside the card's punch slot.
+  const hookTop = cardTop + 44 - 202 * scale;
+  const strapLen = Math.max(1, hookTop + 14 * scale);
 
   // strap: near-parallel webbing tapering slightly into the swivel
   ctx.save();
   ctx.fillStyle = COLORS.pink;
   ctx.beginPath();
   ctx.moveTo(cx - strapW * 0.6, -4);
-  ctx.lineTo(cx - strapW * 0.4, hookTop + 22 * scale);
-  ctx.lineTo(cx + strapW * 0.4, hookTop + 22 * scale);
+  ctx.lineTo(cx - strapW * 0.46, hookTop + 14 * scale);
+  ctx.lineTo(cx + strapW * 0.46, hookTop + 14 * scale);
   ctx.lineTo(cx + strapW * 0.6, -4);
   ctx.closePath();
   ctx.fill();
@@ -216,104 +218,118 @@ export function lanyard(ctx: Ctx, cx: number, cardTop: number, requestedScale = 
 }
 
 /**
- * The hardware, top to bottom: a triangular D-ring the webbing folds through, a
- * knurled swivel barrel, then the snap hook whose nose drops into the card's
- * punch slot.
+ * The hardware, modelled on a real trigger snap: a wire loop the webbing folds
+ * over — **wide at the top, tapering to a point** — then a swivel rivet, a flat
+ * tapered body, and a J-hook with a sprung gate across its throat.
+ *
+ * Proportions come from measuring a photograph of the actual clip, expressed
+ * relative to the strap width so the whole assembly scales as one piece.
  */
-function metal(ctx: Ctx, cx: number, top: number, cardTop: number, scale: number) {
+function metal(ctx: Ctx, cx: number, top: number, cardTop: number, s: number) {
   const g = (x0: number, x1: number) => {
     const grd = ctx.createLinearGradient(x0, 0, x1, 0);
     grd.addColorStop(0, COLORS.silverLo);
-    grd.addColorStop(0.22, COLORS.silverHi);
-    grd.addColorStop(0.46, COLORS.silver);
-    grd.addColorStop(0.72, COLORS.silverHi);
+    grd.addColorStop(0.18, COLORS.silverHi);
+    grd.addColorStop(0.42, COLORS.silver);
+    grd.addColorStop(0.62, COLORS.silverHi);
     grd.addColorStop(1, COLORS.silverLo);
     return grd;
   };
 
-  /* ---- triangular D-ring: narrow at the top, splayed at the base ---- */
-  const ringTopW = 30 * scale;
-  const ringBotW = 104 * scale;
-  const ringH = 74 * scale;
+  /* ---- wire loop: wide under the strap, tapering to a rounded point ---- */
+  const ringH = 62 * s;
+  const ringTopW = 83 * s;
+  const ringBotW = 22 * s;
   ctx.save();
   ctx.shadowColor = "rgba(0,0,0,0.4)";
-  ctx.shadowBlur = 16 * scale;
-  ctx.shadowOffsetY = 5 * scale;
-  ctx.strokeStyle = g(cx - ringBotW / 2, cx + ringBotW / 2);
-  ctx.lineWidth = 13 * scale;
+  ctx.shadowBlur = 14 * s;
+  ctx.shadowOffsetY = 5 * s;
+  ctx.strokeStyle = g(cx - ringTopW / 2, cx + ringTopW / 2);
+  ctx.lineWidth = 9 * s;
   ctx.lineJoin = "round";
+  ctx.lineCap = "round";
   ctx.beginPath();
   ctx.moveTo(cx - ringTopW / 2, top);
-  ctx.lineTo(cx - ringBotW / 2, top + ringH);
-  ctx.lineTo(cx + ringBotW / 2, top + ringH);
   ctx.lineTo(cx + ringTopW / 2, top);
+  ctx.quadraticCurveTo(
+    cx + ringTopW * 0.36, top + ringH * 0.7,
+    cx + ringBotW / 2, top + ringH,
+  );
+  ctx.lineTo(cx - ringBotW / 2, top + ringH);
+  ctx.quadraticCurveTo(
+    cx - ringTopW * 0.36, top + ringH * 0.7,
+    cx - ringTopW / 2, top,
+  );
   ctx.closePath();
   ctx.stroke();
   ctx.restore();
 
-  /* ---- swivel barrel hanging from the ring's base ---- */
-  const barrelTop = top + ringH + 6 * scale;
-  const bw = 62 * scale;
-  const bh = 62 * scale;
+  /* ---- swivel rivet ---- */
+  const rivetY = top + ringH + 6 * s;
   ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.38)";
-  ctx.shadowBlur = 14 * scale;
-  ctx.shadowOffsetY = 5 * scale;
-  ctx.fillStyle = g(cx - bw / 2, cx + bw / 2);
-  roundRect(ctx, cx - bw / 2, barrelTop, bw, bh, 10 * scale);
+  ctx.shadowColor = "rgba(0,0,0,0.35)";
+  ctx.shadowBlur = 10 * s;
+  ctx.shadowOffsetY = 3 * s;
+  ctx.fillStyle = g(cx - 11 * s, cx + 11 * s);
+  ctx.beginPath();
+  ctx.ellipse(cx, rivetY, 11 * s, 8 * s, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
-  // knurling: fine vertical grooves across the barrel
+  /* ---- flat tapered body ---- */
+  const bodyTop = rivetY + 4 * s;
+  const bodyH = 42 * s;
+  const bodyBottom = bodyTop + bodyH;
   ctx.save();
-  roundRect(ctx, cx - bw / 2, barrelTop, bw, bh, 10 * scale);
-  ctx.clip();
-  ctx.strokeStyle = "rgba(0,0,0,0.22)";
-  ctx.lineWidth = 1.6 * scale;
-  for (let gx = cx - bw / 2 + 6 * scale; gx < cx + bw / 2; gx += 7 * scale) {
-    ctx.beginPath();
-    ctx.moveTo(gx, barrelTop + bh * 0.2);
-    ctx.lineTo(gx, barrelTop + bh * 0.8);
-    ctx.stroke();
-  }
+  ctx.shadowColor = "rgba(0,0,0,0.3)";
+  ctx.shadowBlur = 10 * s;
+  ctx.shadowOffsetY = 4 * s;
+  ctx.fillStyle = g(cx - 16 * s, cx + 16 * s);
+  ctx.beginPath();
+  ctx.moveTo(cx - 16 * s, bodyTop + 6 * s);
+  ctx.quadraticCurveTo(cx - 16 * s, bodyTop, cx - 10 * s, bodyTop);
+  ctx.lineTo(cx + 10 * s, bodyTop);
+  ctx.quadraticCurveTo(cx + 16 * s, bodyTop, cx + 16 * s, bodyTop + 6 * s);
+  ctx.lineTo(cx + 12 * s, bodyBottom);
+  ctx.lineTo(cx - 12 * s, bodyBottom);
+  ctx.closePath();
+  ctx.fill();
   ctx.restore();
 
-  /* ---- bolt snap: a shaft into a near-closed ring with a sprung gate ---- */
-  const barrelBottom = barrelTop + bh;
-  const R = 46 * scale;
-  // Drop the ring so its nose sits over the card's punch slot.
-  const hy = Math.max(barrelBottom + R * 0.7, cardTop + 34 * scale - R);
-  // The throat opens to the upper right; the shaft enters at the top.
-  const gapStart = -Math.PI * 0.06;
-  const gapEnd = Math.PI * 1.56;
+  /* ---- J-hook: long shank, tight U at the foot, short rise ---- */
+  const tipX = cx + 25 * s;
+  const tipY = bodyBottom + 38 * s;
 
   ctx.save();
-  ctx.strokeStyle = g(cx - R, cx + R);
-  ctx.lineWidth = 22 * scale;
+  ctx.strokeStyle = g(cx - 30 * s, cx + 30 * s);
+  ctx.lineWidth = 17 * s;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.shadowColor = "rgba(0,0,0,0.32)";
-  ctx.shadowBlur = 12 * scale;
-  ctx.shadowOffsetY = 4 * scale;
-
+  ctx.shadowBlur = 11 * s;
+  ctx.shadowOffsetY = 4 * s;
   ctx.beginPath();
-  ctx.moveTo(cx, barrelBottom - 4 * scale);
-  ctx.lineTo(cx, hy - R);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.arc(cx, hy, R, gapStart, gapEnd);
+  ctx.moveTo(cx, bodyBottom - 4 * s);
+  ctx.quadraticCurveTo(cx - 8 * s, bodyBottom + 26 * s, cx - 21 * s, bodyBottom + 50 * s);
+  ctx.quadraticCurveTo(cx - 4 * s, bodyBottom + 88 * s, cx + 24 * s, bodyBottom + 62 * s);
+  ctx.lineTo(tipX, tipY);
   ctx.stroke();
   ctx.restore();
 
-  // sprung gate bridging the throat
+  /* ---- sprung gate across the throat, with its thumb lever ---- */
   ctx.save();
   ctx.strokeStyle = COLORS.silverLo;
-  ctx.lineWidth = 7 * scale;
+  ctx.lineWidth = 6 * s;
   ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.moveTo(cx + Math.cos(gapEnd) * R, hy + Math.sin(gapEnd) * R);
-  ctx.lineTo(cx + Math.cos(gapStart) * R, hy + Math.sin(gapStart) * R);
+  ctx.moveTo(cx - 8 * s, bodyBottom + 4 * s);
+  ctx.lineTo(tipX - 1 * s, tipY - 1 * s);
+  ctx.stroke();
+  // thumb lever poking out to the left
+  ctx.lineWidth = 5 * s;
+  ctx.beginPath();
+  ctx.moveTo(cx - 8 * s, bodyBottom + 7 * s);
+  ctx.lineTo(cx - 21 * s, bodyBottom + 15 * s);
   ctx.stroke();
   ctx.restore();
 }

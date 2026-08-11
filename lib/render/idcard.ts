@@ -60,6 +60,11 @@ const TITLE_SIZE = 66;
 const HEADER_H = 98 + Math.round(TITLE_SIZE * 0.96) + 22;
 /** Identity block: gap under the photo, then the four text lines. */
 const IDENTITY_H = 46 + 130;
+
+const NAME_MAX = 44;
+/** Below this, a two-line name beats shrinking further. */
+const NAME_WRAP_BELOW = 30;
+const NAME_MIN = 19;
 /** Bottom of the content block → card bottom (barcode row + footer). */
 const FOOTER_H = 150;
 
@@ -102,20 +107,61 @@ export function photoWindow(photoAspect: number | null, fit: PhotoFit) {
   return { w, h };
 }
 
+export type NameLayout = { lines: string[]; size: number; lineHeight: number };
+
+/** Width the identity lines get: the full card interior. */
+export const NAME_WIDTH = CONTENT_RIGHT - CONTENT_LEFT;
+
+/**
+ * How a name is set. Short names get one big line. A long one ("Bompelliwar
+ * Saikiran") wraps onto two balanced lines at the largest size that fits both,
+ * rather than shrinking to something unreadable. A single unbroken word that
+ * still won't fit is shrunk to the floor and then ellipsised — the card is never
+ * allowed to overflow.
+ */
+export function layoutName(ctx: Ctx, raw: string, maxWidth = NAME_WIDTH): NameLayout {
+  const name = (raw.trim() || "YOUR NAME").toUpperCase();
+  const one = fitFontSize(ctx, name, FONTS.display, 900, NAME_MAX, NAME_MIN, maxWidth, 0.5);
+  const single = { lines: [name], size: one, lineHeight: one * 0.92 };
+  if (one >= NAME_WRAP_BELOW) return single;
+
+  const words = name.split(/\s+/);
+  if (words.length < 2) return single;
+
+  // Try every split point, keep the one that lets both lines run largest.
+  let best: NameLayout | null = null;
+  for (let i = 1; i < words.length; i++) {
+    const a = words.slice(0, i).join(" ");
+    const b = words.slice(i).join(" ");
+    const size = Math.min(
+      fitFontSize(ctx, a, FONTS.display, 900, NAME_MAX, NAME_MIN, maxWidth, 0.5),
+      fitFontSize(ctx, b, FONTS.display, 900, NAME_MAX, NAME_MIN, maxWidth, 0.5),
+    );
+    if (!best || size > best.size) best = { lines: [a, b], size, lineHeight: size * 0.92 };
+  }
+  return best && best.size > one ? best : single;
+}
+
 /**
  * Full card geometry for a given photo. Both faces are laid out from this, so a
  * card that grew for a tall portrait keeps the same silhouette front and back.
  */
-export function cardLayout(photoAspect: number | null, fit: PhotoFit) {
+export function cardLayout(
+  photoAspect: number | null,
+  fit: PhotoFit,
+  name: NameLayout | null = null,
+) {
   const photo = photoWindow(photoAspect, fit);
+  // A wrapped name pushes the rest of the block down; the card grows with it.
+  const extraName = name ? (name.lines.length - 1) * name.lineHeight : 0;
   // The chip column sits beside the photo and runs on past it, so the content
   // block is whichever is taller: the chips, or the photo plus its text.
-  const contentH = Math.max(CHIP_COL_H, photo.h + IDENTITY_H);
+  const contentH = Math.max(CHIP_COL_H, photo.h + IDENTITY_H + extraName);
   const h = HEADER_H + contentH + FOOTER_H;
   // Anchor the card's bottom near the GOA 2026 wordmark, then clamp the top so
   // a tall card never rides up into the mirrored headline.
   const y = clamp(1186 - h, 336, 404);
-  return { x: CARD_X, y, w: CARD_W, h, r: CARD_R, contentH, photo };
+  return { x: CARD_X, y, w: CARD_W, h, r: CARD_R, contentH, photo, name };
 }
 
 /** Aspect the crop UI should present so its viewport matches the card exactly. */
@@ -151,9 +197,10 @@ function drawFront(ctx: Ctx, env: RenderEnv, data: CardData, L: CardLayout) {
   const left = CONTENT_LEFT;
   const right = CONTENT_RIGHT;
   const innerW = right - left;
-  // The identity lines share the photo's left edge, clear of the chip column.
-  const col = PHOTO_X;
-  const colW = right - col;
+  // Identity lines span the full card interior rather than being indented to
+  // the photo, so long names have the most room available.
+  const col = left;
+  const colW = innerW;
 
   /* header ------------------------------------------------------------- */
   ctx.save();
@@ -182,7 +229,7 @@ function drawFront(ctx: Ctx, env: RenderEnv, data: CardData, L: CardLayout) {
   ctx.stroke();
   ctx.restore();
 
-  drawPortrait(ctx, data, col, rowTop, L.photo.w, L.photo.h);
+  drawPortrait(ctx, data, PHOTO_X, rowTop, L.photo.w, L.photo.h);
 
   /* identity block ----------------------------------------------------- */
   const metaTop = y + h - 118;
@@ -192,10 +239,12 @@ function drawFront(ctx: Ctx, env: RenderEnv, data: CardData, L: CardLayout) {
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = COLORS.ink;
 
-  const displayName = (data.name.trim() || "YOUR NAME").toUpperCase();
-  fitFontSize(ctx, displayName, FONTS.display, 900, 44, 20, colW, 0.5);
-  trackedText(ctx, displayName, col, cy, 0.5);
-  cy += 34;
+  const nameLayout = L.name ?? layoutName(ctx, data.name, colW);
+  nameLayout.lines.forEach((line, i) => {
+    ctx.font = font(FONTS.display, nameLayout.size, 900);
+    trackedText(ctx, ellipsize(ctx, line, colW), col, cy + i * nameLayout.lineHeight, 0.5);
+  });
+  cy += (nameLayout.lines.length - 1) * nameLayout.lineHeight + 34;
 
   // STACK: <input>
   const labelSize = 18;
@@ -500,7 +549,11 @@ export function renderIdCard(
 ) {
   // Both faces are laid out from the same geometry, so flipping never changes
   // the card's silhouette even when a tall photo has grown it.
-  const L = cardLayout(aspectOf(data.photo), data.transform.fit);
+  // Measured before layout, because a wrapped name changes the card's height.
+  ctx.save();
+  const name = layoutName(ctx, data.name);
+  ctx.restore();
+  const L = cardLayout(aspectOf(data.photo), data.transform.fit, name);
   ctx.save();
   ctx.clearRect(0, 0, W, H);
   poster(ctx);

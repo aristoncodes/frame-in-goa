@@ -73,6 +73,22 @@ loads the same files.
 - **Drag to reposition, pinch/scroll to zoom** in a viewport that matches the
   destination frame exactly.
 
+#### Long names
+
+`layoutName()` sets the name at 44px when it fits. A long one
+("Bompelliwar Saikiran") gets the full card width; longer still
+("Venkatanarasimharajuvaripeta Srinivasulu") **wraps onto two balanced lines** at
+the largest size that fits both, and the card grows to take them — front and
+back together, so the silhouette still matches. A single unbroken word that
+won't fit is shrunk to a 19px floor and then ellipsised. The card can't overflow.
+
+#### Photo tone
+
+`kraft` warms and slightly desaturates the photo so it sits *in* the card's paper
+rather than on top of it, the way the reference badge's portrait does. `original`
+leaves the upload as shot. The card defaults to kraft, the PFP to original — an
+avatar is the person's own picture and shouldn't be recoloured by default.
+
 #### Nothing gets cut
 
 The ID card's photo window **resizes itself to the uploaded photo** — it takes
