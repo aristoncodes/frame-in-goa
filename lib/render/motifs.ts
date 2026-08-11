@@ -49,13 +49,13 @@ export function mirroredHeadline(ctx: Ctx, w: number, opts: { top?: number } = {
   // Sized so a line spans the full canvas width; positioned so the caps are
   // whole rather than sliced by the top edge.
   let size = 200;
-  ctx.font = font(FONTS.display, size, 900);
+  ctx.font = font(FONTS.display, size, 500);
   size = Math.round((size * (w * 1.02)) / ctx.measureText(lines[0]).width);
 
   const lineH = size * 0.9;
   lines.forEach((line, i) => {
-    ctx.font = font(FONTS.display, size, 900);
-    ctx.globalAlpha = 0.92;
+    ctx.font = font(FONTS.display, size, 500);
+    ctx.globalAlpha = 0.82;
     ctx.fillText(line, w / 2, top + size * 0.86 + i * lineH);
   });
   ctx.restore();
@@ -68,9 +68,10 @@ export function bottomWordmark(ctx: Ctx, w: number, h: number) {
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = COLORS.gold;
   let size = 200;
-  ctx.font = font(FONTS.display, size, 900);
+  ctx.font = font(FONTS.display, size, 500);
   size = Math.round((size * (w * 0.96)) / ctx.measureText("GOA 2026").width);
-  ctx.font = font(FONTS.display, size, 900);
+  ctx.font = font(FONTS.display, size, 500);
+  ctx.globalAlpha = 0.9;
   ctx.fillText("GOA 2026", w / 2, h - size * 0.12);
   ctx.restore();
 }

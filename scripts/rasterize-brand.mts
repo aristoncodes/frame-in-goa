@@ -11,9 +11,11 @@ import path from "node:path";
 
 const dir = path.join(process.cwd(), "public", "brand");
 
-for (const [src, out, scale] of [
-  ["goa_hindi.svg", "goa-hindi.png", 6],
-  ["2-47.svg", "studio-247.png", 4],
+for (const [src, out, scale, tint] of [
+  // The site serves गोवा in gold; the brand's accent — and the reference
+  // composite — put the badge in hot pink, so it is recoloured here.
+  ["goa_hindi.svg", "goa-hindi.png", 6, "#E6197A"],
+  ["2-47.svg", "studio-247.png", 4, null],
 ] as const) {
   const svg = fs.readFileSync(path.join(dir, src), "utf8");
   const w = Number(svg.match(/width="([\d.]+)"/)?.[1] ?? 200);
@@ -48,7 +50,13 @@ for (const [src, out, scale] of [
   const tw = Math.max(1, x1 - x0 + 1);
   const th = Math.max(1, y1 - y0 + 1);
   const c = createCanvas(tw, th);
-  c.getContext("2d").drawImage(full, -x0, -y0);
+  const cctx = c.getContext("2d");
+  cctx.drawImage(full, -x0, -y0);
+  if (tint) {
+    cctx.globalCompositeOperation = "source-in";
+    cctx.fillStyle = tint;
+    cctx.fillRect(0, 0, tw, th);
+  }
   fs.writeFileSync(path.join(dir, out), c.toBuffer("image/png"));
   console.log(`${out}  ${img.width}x${img.height} → trimmed ${tw}x${th}`);
 }
