@@ -106,8 +106,14 @@ to a 19px floor and then ellipsised. The card can't overflow, and it can't grow.
 
 The portrait sits on a **kraft mount** — a 12px margin of card paper inside the
 window's rule, painted clean of the card's grain so the margin reads crisply.
-The picture itself is left exactly as uploaded: the paper colour lives in the
-mount, so nothing needs tinting to tie the photo to the card.
+When an uncropped photo doesn't reach every edge, the remainder is filled with
+that same kraft, so the margin is one continuous colour and the picture reads as
+a matted print. The photo itself is left exactly as uploaded: the paper colour
+lives in the mount, so nothing needs tinting to tie it to the card.
+
+`drawPhoto`'s `backdrop` argument carries that colour. The circular PFP ring has
+no flat surround to match, so it passes none and falls back to a blurred
+cover-fit copy of the photo instead.
 
 #### Nothing gets cut
 
@@ -120,7 +126,7 @@ Two framing modes, toggled per generator:
 
 | Mode | Behaviour | Default in |
 | --- | --- | --- |
-| **Whole photo** (`contain`) | Nothing is cropped; the remainder of the frame is filled with a blurred copy of the same photo. | Builder ID card |
+| **Whole photo** (`contain`) | Nothing is cropped. On the card the remainder is filled with kraft, matching the mount; in the PFP's circle it is a blurred copy of the photo. | Builder ID card |
 | **Fill frame** (`cover`) | Fills the frame edge to edge and crops the overflow; drag/zoom put the crop under the user's control. | PFP frame |
 
 The PFP defaults to filling because a circle cannot take a rectangle's aspect

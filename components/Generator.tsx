@@ -9,7 +9,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { EVENT } from "@/lib/brand";
+import { COLORS, EVENT } from "@/lib/brand";
 import { browserEnv, canvasToBlob, downloadBlob, ensureFonts, slugify } from "@/lib/browser";
 import { generateBuilderTitle } from "@/lib/builderTitle";
 import { ACCEPTED_TYPES, loadPhoto, UnsupportedImageError, type LoadedPhoto } from "@/lib/image";
@@ -31,6 +31,8 @@ import ShareBar from "./ShareBar";
 type Mode = "card" | "pfp";
 
 const IDENTITY_DEFAULT = { name: "", stack: "", role: "" };
+/** Matches the card's photo mount, so the control previews the real backdrop. */
+const KRAFT = COLORS.kraft;
 
 export default function Generator() {
   const [mode, setMode] = useState<Mode>("card");
@@ -306,6 +308,7 @@ export default function Generator() {
                 photo={photo}
                 aspect={aspect}
                 round={mode === "pfp"}
+                backdrop={mode === "card" ? KRAFT : undefined}
                 transform={transform}
                 onChange={setTransform}
               />

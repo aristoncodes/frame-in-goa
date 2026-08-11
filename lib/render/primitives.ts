@@ -297,8 +297,13 @@ export function photoRect(
 
 /**
  * Draw a photo into a frame. Assumes the caller has already clipped to the
- * frame shape. In `contain` mode a blurred cover-fit copy is laid down first so
- * the frame is always fully painted without any part of the photo being cut.
+ * frame shape.
+ *
+ * In `contain` mode the photo does not reach every edge, so the remainder has to
+ * be painted. `backdrop` gives that area a flat colour — pass the surrounding
+ * paper colour and the photo reads as mounted on it. Without one, a blurred
+ * cover-fit copy of the photo is used instead, which suits a frame that has no
+ * flat surround to match (the circular PFP ring).
  */
 export function drawPhoto(
   ctx: Ctx,
@@ -308,8 +313,14 @@ export function drawPhoto(
   w: number,
   h: number,
   transform: PhotoTransform = DEFAULT_TRANSFORM,
+  backdrop?: string,
 ) {
-  if (transform.fit === "contain") {
+  if (transform.fit === "contain" && backdrop) {
+    ctx.save();
+    ctx.fillStyle = backdrop;
+    ctx.fillRect(x, y, w, h);
+    ctx.restore();
+  } else if (transform.fit === "contain") {
     const bg = photoRect(img, x, y, w, h, { ...transform, fit: "cover", zoom: 1.18 });
     ctx.save();
     // Chromium, Safari and @napi-rs/canvas all support ctx.filter; if a runtime

@@ -314,7 +314,9 @@ function drawPortrait(
   roundRect(ctx, px, py, pw, ph, r);
   ctx.clip();
   if (data.photo) {
-    drawPhoto(ctx, data.photo, px, py, pw, ph, data.transform);
+    // Kraft backdrop, so an uncropped photo is matted in the card's own paper
+    // rather than sitting on a contrasting fill.
+    drawPhoto(ctx, data.photo, px, py, pw, ph, data.transform, COLORS.kraft);
   } else {
     ctx.fillStyle = COLORS.kraftDeep;
     ctx.fillRect(px, py, pw, ph);

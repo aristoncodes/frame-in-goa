@@ -9,6 +9,8 @@ type Props = {
   photo: LoadedPhoto;
   aspect: number;
   round?: boolean;
+  /** Flat colour behind an uncropped photo; must match the destination frame. */
+  backdrop?: string;
   transform: PhotoTransform;
   /** A setState updater, so rapid gestures compose instead of clobbering. */
   onChange: Dispatch<SetStateAction<PhotoTransform>>;
@@ -26,7 +28,14 @@ type Gesture = { startT: PhotoTransform; start: Point; startDist: number };
  * user never has to pre-crop. Pointer events cover mouse, touch and pen; a
  * second finger (or the wheel / slider) zooms.
  */
-export default function PhotoAdjust({ photo, aspect, round, transform, onChange }: Props) {
+export default function PhotoAdjust({
+  photo,
+  aspect,
+  round,
+  backdrop,
+  transform,
+  onChange,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const pointers = useRef(new Map<number, Point>());
@@ -40,8 +49,8 @@ export default function PhotoAdjust({ photo, aspect, round, transform, onChange 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawPhoto(ctx, photo.source, 0, 0, canvas.width, canvas.height, transform);
-  }, [photo, aspect, transform]);
+    drawPhoto(ctx, photo.source, 0, 0, canvas.width, canvas.height, transform, backdrop);
+  }, [photo, aspect, transform, backdrop]);
 
   /**
    * Converts a pixel drag into the normalised offsets drawPhoto expects, using
