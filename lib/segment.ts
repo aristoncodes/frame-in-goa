@@ -26,6 +26,34 @@ const MODEL_PATH = "/models/selfie_segmenter.tflite";
  *  going above this buys nothing but costs time on a phone. */
 const WORK_MAX = 1024;
 
+/**
+ * Which label in the category mask is the person.
+ *
+ * Model builds disagree on whether the subject is 0 or non-zero, and guessing
+ * wrong inverts the cut-out — it replaces the person and keeps the wall. So
+ * decide from the image instead: the border of a portrait is overwhelmingly
+ * background, so whichever label dominates the frame's edge is the background.
+ */
+export function subjectLabelIsNonZero(mask: Uint8Array, w: number, h: number) {
+  let nonZero = 0;
+  let total = 0;
+  const step = Math.max(1, Math.floor(Math.min(w, h) / 64));
+  for (let x = 0; x < w; x += step) {
+    for (const y of [0, h - 1]) {
+      total++;
+      if (mask[y * w + x] !== 0) nonZero++;
+    }
+  }
+  for (let y = 0; y < h; y += step) {
+    for (const x of [0, w - 1]) {
+      total++;
+      if (mask[y * w + x] !== 0) nonZero++;
+    }
+  }
+  // Edge mostly non-zero ⇒ non-zero is the background ⇒ subject is zero.
+  return total > 0 && nonZero / total < 0.5;
+}
+
 type Segmenter = {
   segment: (image: HTMLCanvasElement) => {
     categoryMask?: { getAsUint8Array(): Uint8Array } | null;
@@ -94,7 +122,8 @@ export async function replaceBackground(
     result.close();
   }
 
-  // The selfie model labels background 0 and person non-zero.
+  const subjectIsNonZero = subjectLabelIsNonZero(mask, w, h);
+
   const maskCanvas = document.createElement("canvas");
   maskCanvas.width = w;
   maskCanvas.height = h;
@@ -103,7 +132,7 @@ export async function replaceBackground(
   const img = mctx.createImageData(w, h);
   let subject = 0;
   for (let i = 0; i < mask.length; i++) {
-    const on = mask[i] !== 0;
+    const on = subjectIsNonZero ? mask[i] !== 0 : mask[i] === 0;
     if (on) subject++;
     const o = i * 4;
     img.data[o] = 255;

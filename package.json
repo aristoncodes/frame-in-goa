@@ -11,7 +11,8 @@
     "e2e": "tsx scripts/e2e.ts",
     "check:size": "tsx scripts/check-card-size.mts",
     "check:pfp": "tsx scripts/pfp-check.mts",
-    "check:cutout": "tsx scripts/cutout-check.mts"
+    "check:cutout": "tsx scripts/cutout-check.mts",
+    "check:polarity": "tsx scripts/segment-polarity-test.mts"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",

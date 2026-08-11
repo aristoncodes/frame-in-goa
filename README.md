@@ -120,6 +120,12 @@ reversible.
   unreachable the cut-out fails and the photo is kept as-is.
 - If the model finds no person (mask under 4% of the frame), it says so and
   keeps the original rather than erasing the photo.
+- **Mask polarity is detected, not assumed.** Model builds disagree on whether
+  the subject is label 0 or non-zero, and guessing wrong inverts the cut-out —
+  replacing the person and keeping the wall. `subjectLabelIsNonZero()` decides
+  from the image: a portrait's border is overwhelmingly background, so whichever
+  label dominates the frame's edge is the background. `npm run check:polarity`
+  proves it against both conventions.
 
 ```bash
 npm run check:cutout -- ./fixtures/your-photo.jpg
