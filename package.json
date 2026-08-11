@@ -7,12 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "preview": "tsx scripts/preview.ts",
+    "preview": "tsx scripts/preview.mts",
     "e2e": "tsx scripts/e2e.ts",
     "check:size": "tsx scripts/check-card-size.mts",
     "check:pfp": "tsx scripts/pfp-check.mts",
     "check:cutout": "tsx scripts/cutout-check.mts",
-    "check:polarity": "tsx scripts/segment-polarity-test.mts"
+    "check:polarity": "tsx scripts/segment-polarity-test.mts",
+    "brand": "tsx scripts/rasterize-brand.mts"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",

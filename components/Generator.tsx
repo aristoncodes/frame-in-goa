@@ -27,6 +27,7 @@ import { PFP_SIZE, renderPfp } from "@/lib/render/pfp";
 import type { Ctx } from "@/lib/render/primitives";
 import { BackgroundRemovalError, replaceBackground } from "@/lib/segment";
 import PhotoAdjust from "./PhotoAdjust";
+import { BRAND_ASSET_PATHS, NO_ASSETS, type BrandAssets } from "@/lib/render/assets";
 import ShareBar, { type ShareImage } from "./ShareBar";
 
 type Mode = "card" | "pfp";
@@ -60,8 +61,8 @@ export default function Generator() {
   const [busy, setBusy] = useState(false);
   const [fontsLoaded, setFontsLoaded] = useState(false);
 
-  const [logo, setLogo] = useState<HTMLImageElement | null>(null);
-  const [clipArt, setClipArt] = useState<HTMLImageElement | null>(null);
+  // Official HH Goa artwork, loaded once and passed to every render.
+  const [assets, setAssets] = useState<BrandAssets>(NO_ASSETS);
 
   // Background replacement: the cut-out is kept alongside the original so the
   // toggle is instant and always reversible.
@@ -85,16 +86,20 @@ export default function Generator() {
     // Optional: point NEXT_PUBLIC_LOGO_URL at the official HH Goa lockup and the
     // card back uses that artwork as-is. Unset, the back draws the wordmark from
     // the same type system as everything else (see drawBack).
-    const load = (url: string | undefined, set: (i: HTMLImageElement) => void) => {
+    const load = (url: string | undefined, key: keyof BrandAssets) => {
       if (!url) return;
       const img = new Image();
       img.crossOrigin = "anonymous";
-      img.onload = () => set(img);
+      img.onload = () => setAssets((prev) => ({ ...prev, [key]: img }));
       img.src = url;
     };
-    load(process.env.NEXT_PUBLIC_LOGO_URL, setLogo);
-    // Optional cut-out artwork of the lanyard clip, used in place of the drawn one.
-    load(process.env.NEXT_PUBLIC_CLIP_URL, setClipArt);
+    load(BRAND_ASSET_PATHS.goa, "goa");
+    load(BRAND_ASSET_PATHS.studio, "studio");
+    load(BRAND_ASSET_PATHS.wordmark, "wordmark");
+    // Optional overrides: a full lockup for the card back, and a photograph of
+    // the lanyard clip in place of the drawn one.
+    load(process.env.NEXT_PUBLIC_LOGO_URL, "logo");
+    load(process.env.NEXT_PUBLIC_CLIP_URL, "clip");
   }, []);
 
   /** What the renderers actually composite: the cut-out when it's on and ready. */
@@ -140,11 +145,11 @@ export default function Generator() {
 
     if (mode === "card") {
       const data: CardData = { ...identity, builderTitle, photo: source, transform };
-      renderIdCard(ctx, browserEnv, data, face, logo, clipArt);
+      renderIdCard(ctx, browserEnv, data, face, assets);
     } else {
-      renderPfp(ctx, { photo: source, transform });
+      renderPfp(ctx, { photo: source, transform }, assets);
     }
-  }, [mode, face, identity, builderTitle, source, transform, logo, clipArt]);
+  }, [mode, face, identity, builderTitle, source, transform, assets]);
 
   // One composite per animation frame, cancelled on the next change, so holding
   // a key or dragging never queues up a backlog of full-res renders.
@@ -197,15 +202,14 @@ export default function Generator() {
           browserEnv,
           { ...identity, builderTitle, photo: source, transform },
           which === "pfp" ? "front" : which,
-          logo,
-          clipArt,
+          assets,
         );
       } else {
-        renderPfp(ctx, { photo: source, transform });
+        renderPfp(ctx, { photo: source, transform }, assets);
       }
       return canvasToBlob(off);
     },
-    [mode, face, identity, builderTitle, source, transform, logo, clipArt],
+    [mode, face, identity, builderTitle, source, transform, assets],
   );
 
   /**
@@ -231,13 +235,13 @@ export default function Generator() {
     };
     const [front, back, pfp] = await Promise.all([
       make(ID_CARD_SIZE.w, ID_CARD_SIZE.h, (ctx) =>
-        renderIdCard(ctx, browserEnv, data, "front", logo, clipArt),
+        renderIdCard(ctx, browserEnv, data, "front", assets),
       ),
       make(ID_CARD_SIZE.w, ID_CARD_SIZE.h, (ctx) =>
-        renderIdCard(ctx, browserEnv, data, "back", logo, clipArt),
+        renderIdCard(ctx, browserEnv, data, "back", assets),
       ),
       make(PFP_SIZE.w, PFP_SIZE.h, (ctx) =>
-        renderPfp(ctx, { photo: source, transform: transforms.pfp }),
+        renderPfp(ctx, { photo: source, transform: transforms.pfp }, assets),
       ),
     ]);
     return [
@@ -245,7 +249,7 @@ export default function Generator() {
       { key: "back", label: "ID card — back", fileName: `hhgoa2026-builder-id-back-${slug}.png`, blob: back },
       { key: "pfp", label: "PFP frame", fileName: `hhgoa2026-pfp-${slug}.png`, blob: pfp },
     ];
-  }, [identity, builderTitle, source, transforms, logo, clipArt]);
+  }, [identity, builderTitle, source, transforms, assets]);
 
   const fileName = (which: string) =>
     `hhgoa2026-${mode === "card" ? `builder-id-${which}` : "pfp"}-${slugify(

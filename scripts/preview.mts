@@ -5,7 +5,7 @@
  * renderer modules the browser uses, so the composition can be inspected and
  * iterated on without a browser. Run: npm run preview
  */
-import { createCanvas, GlobalFonts, type SKRSContext2D } from "@napi-rs/canvas";
+import { createCanvas, GlobalFonts, loadImage, type SKRSContext2D } from "@napi-rs/canvas";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,6 +15,7 @@ import { renderIdCard, ID_CARD_SIZE, type CardData } from "../lib/render/idcard"
 import { DEFAULT_TRANSFORM } from "../lib/render/primitives";
 import { renderPfp, PFP_SIZE } from "../lib/render/pfp";
 import type { RenderEnv } from "../lib/render/motifs";
+import { NO_ASSETS, type BrandAssets } from "../lib/render/assets";
 import type { Ctx } from "../lib/render/primitives";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -22,11 +23,24 @@ const outDir = path.join(root, "scripts", "out");
 fs.mkdirSync(outDir, { recursive: true });
 
 for (const [file, family] of [
-  ["Fraunces-Display.woff2", FONTS.display],
+  ["Imbue.woff2", FONTS.display],
   ["YatraOne.woff2", FONTS.deva],
-  ["Inter.woff2", FONTS.body],
+  ["VictorMono.woff2", FONTS.body],
 ] as const) {
   GlobalFonts.registerFromPath(path.join(root, "public", "fonts", file), family);
+}
+
+/** The same official marks the browser loads, so previews match production. */
+const assets: BrandAssets = { ...NO_ASSETS };
+for (const [key, file] of [
+  ["goa", "goa-hindi.png"],
+  ["studio", "studio-247.png"],
+  ["wordmark", "hacker-house.png"],
+] as const) {
+  const p = path.join(root, "public", "brand", file);
+  if (fs.existsSync(p)) {
+    assets[key] = (await loadImage(fs.readFileSync(p))) as unknown as CanvasImageSource;
+  }
 }
 
 const env: RenderEnv = {
@@ -105,7 +119,7 @@ for (const c of cases) {
   if (c.data?.name !== undefined && c.data.builderTitle === undefined) {
     data.builderTitle = generateBuilderTitle(data.name, data.stack, data.role);
   }
-  renderIdCard(ctx, env, data, "front");
+  renderIdCard(ctx, env, data, "front", assets);
   write(`${c.name}.png`, canvas);
 }
 
@@ -116,7 +130,7 @@ for (const [label, photo] of [
 ] as const) {
   const canvas = createCanvas(ID_CARD_SIZE.w, ID_CARD_SIZE.h);
   const ctx = canvas.getContext("2d") as unknown as Ctx;
-  renderIdCard(ctx, env, { ...base, photo } as CardData, "back");
+  renderIdCard(ctx, env, { ...base, photo } as CardData, "back", assets);
   write(`${label}.png`, canvas);
 }
 
@@ -127,7 +141,7 @@ for (const [label, photo, t] of [
 ] as const) {
   const canvas = createCanvas(PFP_SIZE.w, PFP_SIZE.h);
   const ctx = canvas.getContext("2d") as unknown as Ctx;
-  renderPfp(ctx, { photo, transform: t });
+  renderPfp(ctx, { photo, transform: t }, assets);
   write(`${label}.png`, canvas);
 }
 

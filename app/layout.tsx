@@ -37,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="preload"
           as="font"
           type="font/woff2"
-          href="/fonts/Fraunces-Display.woff2"
+          href="/fonts/Imbue.woff2"
           crossOrigin="anonymous"
         />
         <link

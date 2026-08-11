@@ -59,10 +59,35 @@ The renderers take a plain canvas 2D context, so the **exact same code** runs in
 the browser and in `scripts/preview.ts` under `@napi-rs/canvas`. That is what
 makes composition changes reviewable without a browser.
 
-Type is served from `public/fonts/*.woff2` (Fraunces for display, Yatra One for
-the Devanagari wordmark, Inter for utility text) rather than `next/font`, because
-canvas needs to reference the families by literal name and the offline harness
-loads the same files.
+## Brand assets
+
+Type and marks come from the event's own site rather than being approximated:
+
+| | |
+| --- | --- |
+| **Imbue** | display — headline, "BUILDER ID", names. The site's display face. |
+| **Victor Mono** | everything else. The site's mono. |
+| **गोवा** | `hhgoa.com/assets/goa_hindi.svg` |
+| **2:47 studio** | `hhgoa.com/assets/2-47.svg` |
+| **Hacker House** | `hhgoa.com/assets/Hacker house.png` |
+
+`npm run brand` rasterises the SVGs to high-resolution PNGs, because both resvg
+and some browsers rasterise an SVG at its declared size before scaling it. Two
+traps there, both hit and fixed: enlarging `width`/`height` only scales the
+artwork if a `viewBox` maps the old coordinate space onto the new size —
+otherwise the mark is merely padded — and the source marks carry wide
+transparent margins, so they are trimmed to their opaque bounds or they render a
+fraction of their box.
+
+The gold marks are recoloured to the card's ink where they sit on kraft, through
+an offscreen buffer from the render env so it works in the browser and the
+offline harness alike. Every mark is optional: `lib/render/assets.ts` defines the
+bundle and each renderer falls back to type, so a slow network delays the artwork
+rather than breaking the graphic.
+
+Fonts are served from `public/fonts/*.woff2` rather than via `next/font`, because
+canvas must reference the families by literal name and the offline harness loads
+the same files.
 
 ### Handling real photos
 

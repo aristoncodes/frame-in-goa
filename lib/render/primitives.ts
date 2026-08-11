@@ -178,9 +178,38 @@ export function devaBadge(
   cx: number,
   cy: number,
   size: number,
-  opts: { rotate?: number; glow?: boolean; plate?: boolean } = {},
+  opts: {
+    rotate?: number;
+    glow?: boolean;
+    plate?: boolean;
+    /** Official गोवा artwork; drawn instead of the type when supplied. */
+    image?: CanvasImageSource | null;
+  } = {},
 ) {
-  const { rotate = -0.09, glow = true, plate = false } = opts;
+  const { rotate = -0.09, glow = true, plate = false, image = null } = opts;
+
+  if (image) {
+    const iw = (image as HTMLImageElement).width;
+    const ih = (image as HTMLImageElement).height;
+    // The official mark is roughly square; match it on height so callers keep
+    // sizing this the same way they sized the type.
+    const h = size * 1.5;
+    const w = iw && ih ? (iw / ih) * h : h;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rotate);
+    if (glow) {
+      // The artwork already has its own sticker outline; a soft dark shadow
+      // lifts it off the background without fighting that.
+      ctx.shadowColor = "rgba(0,0,0,0.45)";
+      ctx.shadowBlur = size * 0.3;
+      ctx.shadowOffsetY = size * 0.05;
+    }
+    ctx.drawImage(image, -w / 2, -h / 2, w, h);
+    ctx.restore();
+    return;
+  }
+
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(rotate);

@@ -1,5 +1,6 @@
 import { CANVAS, COLORS, EVENT, FONTS } from "../brand";
 import { sparkle } from "./motifs";
+import { NO_ASSETS, type BrandAssets } from "./assets";
 import {
   Ctx,
   devaBadge,
@@ -54,7 +55,7 @@ export const PFP_PHOTO_BOX = {
  * the dates arced along the bottom, a hot-pink inner hairline, and the गोवा
  * sticker locked over the foot of the portrait.
  */
-export function renderPfp(ctx: Ctx, data: PfpData) {
+export function renderPfp(ctx: Ctx, data: PfpData, assets: BrandAssets = NO_ASSETS) {
   ctx.clearRect(0, 0, S, S);
 
   background(ctx);
@@ -97,7 +98,11 @@ export function renderPfp(ctx: Ctx, data: PfpData) {
   }
 
   /* गोवा sticker over the foot of the portrait ---------------------------- */
-  devaBadge(ctx, CX, CY + PHOTO_R - S * 0.052, S * 0.088, { rotate: -0.05, glow: true });
+  devaBadge(ctx, CX, CY + PHOTO_R - S * 0.058, S * 0.075, {
+    rotate: -0.05,
+    glow: true,
+    image: assets.goa,
+  });
 }
 
 /* ---------------------------------------------------------- backdrop */

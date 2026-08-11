@@ -1,4 +1,5 @@
 import { CANVAS, COLORS, EVENT, FONTS } from "../brand";
+import { NO_ASSETS, type BrandAssets } from "./assets";
 import {
   barcode,
   bottomWordmark,
@@ -153,7 +154,7 @@ export function cardLayout() {
  * Draws everything behind the card: green field, mirrored headline, starbursts,
  * squiggle, गोवा badge, GOA 2026 wordmark, lanyard strap and clip.
  */
-function poster(ctx: Ctx) {
+function poster(ctx: Ctx, assets: BrandAssets) {
   posterBackground(ctx, W, H);
   mirroredHeadline(ctx, W, { top: 4 });
   bottomWordmark(ctx, W, H);
@@ -162,12 +163,12 @@ function poster(ctx: Ctx) {
     pinkBurst: [W * 0.755, H * 0.685, W * 0.055],
     squiggle: [W * 0.02, H * 0.6, W * 0.245],
     deva: [W * 0.857, H * 0.415, 150],
-  });
+  }, assets.goa);
 }
 
 /* ------------------------------------------------------------- front face */
 
-function drawFront(ctx: Ctx, env: RenderEnv, data: CardData, L: CardLayout) {
+function drawFront(ctx: Ctx, env: RenderEnv, data: CardData, L: CardLayout, assets: BrandAssets) {
   const { x, y, w, h, r } = L;
   cardShell(ctx, x, y, w, h, r);
 
@@ -261,8 +262,8 @@ function drawFront(ctx: Ctx, env: RenderEnv, data: CardData, L: CardLayout) {
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = COLORS.ink;
-  ctx.font = font(FONTS.body, 14, 600);
-  const metaX = left + bcW + 20;
+  ctx.font = font(FONTS.body, 12.5, 600);
+  const metaX = left + bcW + 18;
   ctx.strokeStyle = "rgba(58,42,26,0.4)";
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -271,12 +272,12 @@ function drawFront(ctx: Ctx, env: RenderEnv, data: CardData, L: CardLayout) {
   ctx.stroke();
   [`DATES: ${EVENT.dates}`, `LOCATION: ${EVENT.location}`, `URL: ${EVENT.url}`].forEach(
     (line, i) => {
-      ctx.fillText(line, metaX, metaTop + 13 + i * 18);
+      ctx.fillText(line, metaX, metaTop + 12 + i * 17);
     },
   );
   ctx.restore();
 
-  cardFooter(ctx, x + w / 2, y + h - 30, 15);
+  cardFooter(ctx, x + w / 2, y + h - 26, 15, assets.studio, env);
 }
 
 /**
@@ -358,7 +359,7 @@ function barcodeValue(data: CardData) {
  * If `logo` is supplied (NEXT_PUBLIC_LOGO_URL) it is drawn inside the arch
  * as-is; otherwise the wordmark is built from the same type system as the rest.
  */
-function drawBack(ctx: Ctx, logo: CanvasImageSource | null, L: CardLayout) {
+function drawBack(ctx: Ctx, env: RenderEnv, L: CardLayout, assets: BrandAssets) {
   const { x, y, w, h, r } = L;
   cardShell(ctx, x, y, w, h, r);
 
@@ -384,8 +385,8 @@ function drawBack(ctx: Ctx, logo: CanvasImageSource | null, L: CardLayout) {
   ctx.fillStyle = COLORS.ink;
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
-  ctx.font = font(FONTS.body, 14, 800);
-  trackedText(ctx, "ADMIT ONE  ·  247 BUILDERS", cx, frameTop + 40, 3, "center");
+  ctx.font = font(FONTS.body, 12, 800);
+  trackedText(ctx, "ADMIT ONE · 247 BUILDERS", cx, frameTop + 40, 2.4, "center");
   ctx.restore();
   rule(ctx, cx, frameTop + 56, w * 0.42);
 
@@ -415,13 +416,13 @@ function drawBack(ctx: Ctx, logo: CanvasImageSource | null, L: CardLayout) {
   ctx.stroke();
   ctx.restore();
 
-  if (logo) {
-    const iw = (logo as HTMLImageElement).width;
-    const ih = (logo as HTMLImageElement).height;
+  if (assets.logo) {
+    const iw = (assets.logo as HTMLImageElement).width;
+    const ih = (assets.logo as HTMLImageElement).height;
     const s = Math.min((archW - 70) / iw, (archH - 90) / ih);
-    ctx.drawImage(logo, cx - (iw * s) / 2, archCy - (ih * s) / 2, iw * s, ih * s);
+    ctx.drawImage(assets.logo, cx - (iw * s) / 2, archCy - (ih * s) / 2, iw * s, ih * s);
   } else {
-    drawLockup(ctx, cx, archCy + archH * 0.1, archW - 72);
+    drawLockup(ctx, env, cx, archCy + archH * 0.1, archW - 72, assets);
   }
 
   /* chip strip -------------------------------------------------------- */
@@ -436,14 +437,16 @@ function drawBack(ctx: Ctx, logo: CanvasImageSource | null, L: CardLayout) {
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
   ctx.font = font(FONTS.body, 16, 700);
-  trackedText(ctx, `${EVENT.dates}  ·  ${EVENT.location}`, cx, frameBottom - 56, 1.4, "center");
+  ctx.font = font(FONTS.body, 14, 700);
+  trackedText(ctx, `${EVENT.dates} · ${EVENT.location}`, cx, frameBottom - 56, 1, "center");
   ctx.fillStyle = COLORS.inkSoft;
-  ctx.font = font(FONTS.body, 13, 500);
-  ctx.fillText("Non-transferable. Carry it, don't laminate it.", cx, frameBottom - 32);
-  ctx.fillText(EVENT.url.toLowerCase(), cx, frameBottom - 14);
+  // Mono is wider than the grotesk this was set for, so keep it short and small.
+  ctx.font = font(FONTS.body, 11, 500);
+  ctx.fillText("Non-transferable · carry it, don't laminate it", cx, frameBottom - 32);
+  ctx.fillText(EVENT.url.toLowerCase(), cx, frameBottom - 15);
   ctx.restore();
 
-  cardFooter(ctx, cx, y + h - 26, 14);
+  cardFooter(ctx, cx, y + h - 24, 14, assets.studio, env);
 }
 
 /** Short centred hairline with a diamond at each end. */
@@ -503,20 +506,54 @@ function ogeeArch(ctx: Ctx, cx: number, cy: number, w: number, h: number) {
 }
 
 /** HACKER / HOUSE stacked with the गोवा sticker locked over the centre. */
-function drawLockup(ctx: Ctx, cx: number, cy: number, maxW: number) {
-  ctx.save();
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillStyle = COLORS.ink;
-  let size = 120;
-  ctx.font = font(FONTS.display, size, 900);
-  size = Math.round((size * maxW) / ctx.measureText("HACKER").width);
-  ctx.font = font(FONTS.display, size, 900);
-  ctx.fillText("HACKER", cx, cy - size * 0.44);
-  ctx.fillText("HOUSE", cx, cy + size * 0.44);
-  ctx.restore();
+function drawLockup(
+  ctx: Ctx,
+  env: RenderEnv,
+  cx: number,
+  cy: number,
+  maxW: number,
+  assets: BrandAssets,
+) {
+  let size: number;
 
-  devaBadge(ctx, cx, cy - size * 0.02, size * 0.74, { rotate: -0.06, glow: false });
+  if (assets.wordmark) {
+    // Official "Hacker House" artwork, tinted to the card's ink so it sits on
+    // kraft rather than punching a coloured hole in it.
+    const iw = (assets.wordmark as HTMLImageElement).width;
+    const ih = (assets.wordmark as HTMLImageElement).height;
+    const w = maxW;
+    const h = (ih / iw) * w;
+    size = h * 1.6;
+
+    // Recoloured through an offscreen buffer from the render env, so this works
+    // the same in the browser and in the offline harness.
+    const tw = Math.max(1, Math.round(w));
+    const th = Math.max(1, Math.round(h));
+    const { canvas: buf, ctx: bctx } = env.createCanvas(tw, th);
+    bctx.drawImage(assets.wordmark, 0, 0, tw, th);
+    bctx.globalCompositeOperation = "source-in";
+    bctx.fillStyle = COLORS.ink;
+    bctx.fillRect(0, 0, tw, th);
+    ctx.drawImage(buf, cx - w / 2, cy - h / 2, w, h);
+  } else {
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = COLORS.ink;
+    size = 120;
+    ctx.font = font(FONTS.display, size, 900);
+    size = Math.round((size * maxW) / ctx.measureText("HACKER").width);
+    ctx.font = font(FONTS.display, size, 900);
+    ctx.fillText("HACKER", cx, cy - size * 0.44);
+    ctx.fillText("HOUSE", cx, cy + size * 0.44);
+    ctx.restore();
+  }
+
+  devaBadge(ctx, cx, cy - size * 0.03, size * 0.52, {
+    rotate: -0.06,
+    glow: false,
+    image: assets.goa,
+  });
 
   ctx.save();
   ctx.fillStyle = COLORS.inkSoft;
@@ -533,20 +570,19 @@ export function renderIdCard(
   env: RenderEnv,
   data: CardData,
   face: CardFace,
-  logo: CanvasImageSource | null = null,
-  clipArt: CanvasImageSource | null = null,
+  assets: BrandAssets = NO_ASSETS,
 ) {
   // Both faces are laid out from the same geometry, so flipping never changes
   // the card's silhouette even when a tall photo has grown it.
   const L = cardLayout();
   ctx.save();
   ctx.clearRect(0, 0, W, H);
-  poster(ctx);
-  if (face === "front") drawFront(ctx, env, data, L);
-  else drawBack(ctx, logo, L);
+  poster(ctx, assets);
+  if (face === "front") drawFront(ctx, env, data, L, assets);
+  else drawBack(ctx, env, L, assets);
   // Drawn last so the snap hook passes in front of the card and into its punch
   // slot, the way the clip actually hangs.
-  lanyard(ctx, W / 2, L.y, 1.45, clipArt);
+  lanyard(ctx, W / 2, L.y, 1.45, assets.clip);
   ctx.restore();
 }
 

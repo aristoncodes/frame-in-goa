@@ -86,6 +86,7 @@ export function decorations(
     squiggle: [number, number, number];
     deva: [number, number, number];
   },
+  goaMark: CanvasImageSource | null = null,
 ) {
   const [yx, yy, yr] = layout.yellowBurst;
   ctx.save();
@@ -98,7 +99,7 @@ export function decorations(
   loopySquiggle(ctx, sx, sy, sw, Math.max(3.5, w * 0.0055), COLORS.pink);
 
   const [dx, dy, ds] = layout.deva;
-  devaBadge(ctx, dx, dy, ds, { rotate: -0.07, glow: true });
+  devaBadge(ctx, dx, dy, ds, { rotate: -0.07, glow: true, image: goaMark });
 
   const [px, py, pr] = layout.pinkBurst;
   ctx.save();
@@ -620,8 +621,32 @@ export function cardShell(
   ctx.restore();
 }
 
-/** Small-caps footer line used on both card faces. */
-export function cardFooter(ctx: Ctx, cx: number, y: number, size: number) {
+/** The 2:47 studio mark, or its name set in type when the artwork is absent. */
+export function cardFooter(
+  ctx: Ctx,
+  cx: number,
+  y: number,
+  size: number,
+  mark: CanvasImageSource | null = null,
+  env: RenderEnv | null = null,
+) {
+  if (mark && env) {
+    const iw = (mark as HTMLImageElement).width;
+    const ih = (mark as HTMLImageElement).height;
+    const h = size * 2.4;
+    const w = iw && ih ? (iw / ih) * h : h;
+    // The official mark is gold, which disappears into kraft — recolour it to
+    // the card's ink through an offscreen buffer.
+    const tw = Math.max(1, Math.round(w));
+    const th = Math.max(1, Math.round(h));
+    const { canvas: buf, ctx: bctx } = env.createCanvas(tw, th);
+    bctx.drawImage(mark, 0, 0, tw, th);
+    bctx.globalCompositeOperation = "source-in";
+    bctx.fillStyle = COLORS.inkSoft;
+    bctx.fillRect(0, 0, tw, th);
+    ctx.drawImage(buf, cx - w / 2, y - h * 0.82, w, h);
+    return;
+  }
   ctx.save();
   ctx.fillStyle = COLORS.inkSoft;
   ctx.font = font(FONTS.body, size, 600);

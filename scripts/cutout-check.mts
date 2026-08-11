@@ -28,7 +28,7 @@ const page = await (await b.newContext({ ...devices["iPhone 13"] })).newPage();
 const errs: string[] = [];
 page.on("console", (m) => m.type() === "error" && errs.push(m.text()));
 await page.goto("http://localhost:3000", { waitUntil: "networkidle" });
-await page.waitForFunction(() => document.fonts.check('900 100px "Fraunces-Display"'));
+await page.waitForFunction(() => document.fonts.check('900 100px "Imbue"'));
 await page.setInputFiles('input[type="file"]', fixture);
 await page.waitForSelector("text=POSITION YOUR PHOTO");
 

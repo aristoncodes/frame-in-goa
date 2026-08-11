@@ -22,13 +22,18 @@ export const COLORS = {
   black: "#141210",
 } as const;
 
+/**
+ * The event site's own pairing: Imbue for display, Victor Mono for everything
+ * else. Yatra One only backs up the गोवा wordmark if the official artwork
+ * hasn't loaded.
+ */
 export const FONTS = {
-  /** Tall high-contrast poster serif — "HACKER HOUSE", "BUILDER ID", names. */
-  display: "Fraunces-Display",
-  /** Devanagari sticker wordmark — गोवा. */
+  /** Tall high-contrast display serif — "HACKER HOUSE", "BUILDER ID", names. */
+  display: "Imbue",
+  /** Devanagari fallback for गोवा when the official mark is unavailable. */
   deva: "YatraOne",
-  /** Utility grotesk — labels, meta, form text. */
-  body: "Inter",
+  /** Utility mono — labels, meta, form text. */
+  body: "VictorMono",
 } as const;
 
 export const EVENT = {

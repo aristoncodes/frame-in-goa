@@ -13,7 +13,7 @@ fs.mkdirSync(out, { recursive: true });
 const b = await chromium.launch();
 const p = await (await b.newContext({ ...devices["iPhone 13"] })).newPage();
 await p.goto("http://localhost:3000", { waitUntil: "networkidle" });
-await p.waitForFunction(() => document.fonts.check('900 100px "Fraunces-Display"'));
+await p.waitForFunction(() => document.fonts.check('900 100px "Imbue"'));
 await p.getByRole("tab", { name: "PFP Frame" }).click();
 await p.setInputFiles('input[type="file"]', "./fixtures/bar.png");
 await p.waitForSelector("text=POSITION YOUR PHOTO");

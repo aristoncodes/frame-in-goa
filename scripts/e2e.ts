@@ -33,7 +33,7 @@ async function run() {
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
 
   await page.goto(base, { waitUntil: "networkidle" });
-  await page.waitForFunction(() => document.fonts.check('900 100px "Fraunces-Display"'), {
+  await page.waitForFunction(() => document.fonts.check('900 100px "Imbue"'), {
     timeout: 15000,
   });
   ok("page loads and brand fonts register");
