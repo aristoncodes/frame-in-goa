@@ -185,7 +185,26 @@ export function lanyard(
   cardTop: number,
   requestedScale = 1,
   clipArt: CanvasImageSource | null = null,
+  fullArt: CanvasImageSource | null = null,
 ) {
+  // A photo of the whole lanyard replaces the drawn webbing and hardware alike:
+  // it is hung from the top edge with its foot inside the card's punch slot.
+  if (fullArt) {
+    const iw = (fullArt as HTMLImageElement).width;
+    const ih = (fullArt as HTMLImageElement).height;
+    if (iw && ih) {
+      const h = cardTop + 46;
+      const w = (iw / ih) * h;
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.4)";
+      ctx.shadowBlur = 20;
+      ctx.shadowOffsetY = 8;
+      ctx.drawImage(fullArt, cx - w / 2, 0, w, h);
+      ctx.restore();
+      return;
+    }
+  }
+
   // The card's top moves as it grows for a tall photo. Shrink the hardware to
   // fit rather than letting the strap collapse to nothing above it.
   const scale = Math.min(requestedScale, cardTop / 300);

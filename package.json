@@ -13,7 +13,9 @@
     "check:pfp": "tsx scripts/pfp-check.mts",
     "check:cutout": "tsx scripts/cutout-check.mts",
     "check:polarity": "tsx scripts/segment-polarity-test.mts",
-    "brand": "tsx scripts/rasterize-brand.mts"
+    "brand": "tsx scripts/rasterize-brand.mts",
+    "brand:lanyard": "tsx scripts/prepare-lanyard.mts",
+    "check:lanyard": "tsx scripts/lanyard-selftest.mts"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",

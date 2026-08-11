@@ -13,8 +13,14 @@ export type BrandAssets = {
   wordmark: CanvasImageSource | null;
   /** Optional full lockup for the card back (NEXT_PUBLIC_LOGO_URL). */
   logo: CanvasImageSource | null;
-  /** Optional photograph of the lanyard clip (NEXT_PUBLIC_CLIP_URL). */
+  /** Optional photograph of the lanyard clip alone (NEXT_PUBLIC_CLIP_URL). */
   clip: CanvasImageSource | null;
+  /**
+   * Optional photograph of the whole lanyard — webbing and hardware together
+   * (NEXT_PUBLIC_LANYARD_URL). Takes precedence over `clip`, and replaces the
+   * drawn strap as well, since a single photo carries both.
+   */
+  lanyard: CanvasImageSource | null;
 };
 
 export const NO_ASSETS: BrandAssets = {
@@ -23,6 +29,7 @@ export const NO_ASSETS: BrandAssets = {
   wordmark: null,
   logo: null,
   clip: null,
+  lanyard: null,
 };
 
 /** Paths the marks are served from, shared by the app and the preview harness. */

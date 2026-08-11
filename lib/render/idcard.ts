@@ -582,7 +582,7 @@ export function renderIdCard(
   else drawBack(ctx, env, L, assets);
   // Drawn last so the snap hook passes in front of the card and into its punch
   // slot, the way the clip actually hangs.
-  lanyard(ctx, W / 2, L.y, 1.45, assets.clip);
+  lanyard(ctx, W / 2, L.y, 1.45, assets.clip, assets.lanyard);
   ctx.restore();
 }
 

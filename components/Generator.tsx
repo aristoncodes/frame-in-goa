@@ -100,6 +100,7 @@ export default function Generator() {
     // the lanyard clip in place of the drawn one.
     load(process.env.NEXT_PUBLIC_LOGO_URL, "logo");
     load(process.env.NEXT_PUBLIC_CLIP_URL, "clip");
+    load(process.env.NEXT_PUBLIC_LANYARD_URL, "lanyard");
   }, []);
 
   /** What the renderers actually composite: the cut-out when it's on and ready. */

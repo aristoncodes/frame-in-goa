@@ -257,6 +257,27 @@ browser cooperating.
 `buildCaption()` is the single source of the caption, so **#FrameInGoa** can't be
 dropped by a caller, and the panel flags it if the user deletes it by hand.
 
+### Using a photo of the real lanyard
+
+Canvas paths can approximate the clip's form but not its material. If you have a
+photograph, drop it in instead:
+
+```bash
+npm run brand:lanyard -- ./lanyard.png   # knocks out white, trims, writes public/brand/lanyard.png
+npx vercel env add NEXT_PUBLIC_LANYARD_URL production   # value: /brand/lanyard.png
+npx vercel --prod --yes
+```
+
+The script knocks out near-white pixels, feathering the last stop so chrome
+edges don't come out jagged, and trims to the artwork's bounds so it scales
+predictably. It tests brightness *and* saturation rather than brightness alone,
+because chrome highlights are as bright as the background — they are kept
+because they sit next to dark neighbours.
+
+`npm run check:lanyard` proves that path without needing the real photo: it
+renders the drawn lanyard onto a white field, runs it through the script, and
+checks the background went transparent while the artwork survived.
+
 ## Live
 
 **https://frame-in-goa-mauve.vercel.app**
@@ -281,6 +302,7 @@ npx vercel --prod --yes    # redeploy so the token is picked up
 | `NEXT_PUBLIC_SITE_URL` | no | Canonical origin for metadata. Defaults to the Vercel production URL. |
 | `NEXT_PUBLIC_LOGO_URL` | no | Point at the official HH Goa lockup to use that artwork as-is on the card back. Unset, the back draws the wordmark from the same type system as the rest of the poster. |
 | `NEXT_PUBLIC_CLIP_URL` | no | Point at a **transparent PNG of the lanyard clip** to composite the real photograph instead of the drawn one. Sized into the same box, so the strap still meets it correctly. Unset, the clip is drawn in code. |
+| `NEXT_PUBLIC_LANYARD_URL` | no | Point at a **transparent PNG of the whole lanyard** — webbing and hardware together. Takes precedence over `NEXT_PUBLIC_CLIP_URL` and replaces the drawn strap too, since one photo carries both. |
 
 After deploying, check the link preview with
 [cards-dev.twitter.com/validator](https://cards-dev.twitter.com/validator) or by
