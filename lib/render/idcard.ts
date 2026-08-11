@@ -593,12 +593,16 @@ export function renderIdCard(
   // Front only. The back is the card by itself — hardware there reads as a
   // sticker, since nothing on that face is hanging from anything.
   if (face === "front") {
-    // Threaded *through* the punch slot rather than laid on the card: visible
-    // above the card's top edge and again inside the slot, with the strip of
-    // kraft between them covering it.
+    // Visible everywhere above the slot, and inside the slot, but not below it —
+    // so the hook runs unbroken from the strap, crosses the card's top edge, and
+    // disappears into the hole.
+    //
+    // Clipping at the *card's* top edge instead looked broken: the hook's curve
+    // moves sideways over the strip between that edge and the slot, so the
+    // fragment above and the fragment in the hole didn't line up.
     ctx.save();
     ctx.beginPath();
-    ctx.rect(0, 0, W, L.y);
+    ctx.rect(0, 0, W, L.punch.y);
     addRoundRect(ctx, L.punch.x, L.punch.y, L.punch.w, L.punch.h, L.punch.h / 2);
     ctx.clip();
     // Hung with a slight lean, pivoting on the slot the way it actually would,
@@ -607,7 +611,7 @@ export function renderIdCard(
     ctx.translate(L.punch.x + L.punch.w / 2, L.punch.y + L.punch.h / 2);
     // A firmer lean: the strap and hardware end up left of centre while the
     // foot stays in the hole, which is what "hanging off it" looks like.
-    ctx.rotate(-0.085);
+    ctx.rotate(-0.055);
     ctx.translate(-(L.punch.x + L.punch.w / 2), -(L.punch.y + L.punch.h / 2));
     lanyard(ctx, W / 2 - 10, L.y, 1.75, assets.clip, assets.lanyard);
     ctx.restore();

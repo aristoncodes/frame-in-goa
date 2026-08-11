@@ -179,7 +179,7 @@ const CLIP_UNITS = 370;
  * full height — the hook bottoms out before the box does — and seating by the
  * full height instead left the foot short of the punch slot.
  */
-const CLIP_FOOT_UNITS = 358;
+const CLIP_FOOT_UNITS = 380;
 const clipUnit = (scale: number) => ((76 * scale) / 130) * CLIP_WEIGHT;
 const clipHeight = (scale: number) => CLIP_UNITS * clipUnit(scale);
 const clipFootDrop = (scale: number) => CLIP_FOOT_UNITS * clipUnit(scale);
@@ -221,10 +221,9 @@ export function lanyard(
   // Assembly runs ~202 units from the loop's top bar to the foot of the hook;
   // seat it so that foot lands inside the card's punch slot.
   // Seat it so the hook's foot lands inside the card's punch slot.
-  // Seated on the hook's foot, not the assembly's box: the foot lands mid-slot,
-  // which puts the hardware clear above the card's top edge and leaves only the
-  // hook's lowest curve tucked into the hole.
-  const hookTop = cardTop + 38 - clipFootDrop(scale);
+  // Seated so the shank spans the punch slot and the curve falls below it,
+  // where the clip hides it — the hook reads as passing into the hole.
+  const hookTop = cardTop + 101 - clipFootDrop(scale);
   const strapLen = Math.max(1, hookTop + 14 * scale);
 
   // strap: near-parallel webbing tapering slightly into the swivel
@@ -394,12 +393,15 @@ function metal(ctx: Ctx, cx: number, top: number, cardTop: number, s: number) {
   // The path is defined once and stroked three times — a dark base for edge
   // definition, the chrome body, then a specular core. Stroking a single fat
   // flat-gradient line is what made this read as a grey blob.
+  // A near-vertical shank first, then the curve. The shank is the part that
+  // passes through the punch slot: one clean bar of chrome fills the hole,
+  // where a curve that wide showed only as two disconnected slivers.
   const hook = () => {
     ctx.beginPath();
     ctx.moveTo(cx - px(2), bodyBottom - px(10));
-    ctx.quadraticCurveTo(cx - px(26), bodyBottom + px(30), cx - px(23), bodyBottom + px(66));
-    ctx.quadraticCurveTo(cx - px(18), bodyBottom + px(100), cx + px(19), bodyBottom + px(90));
-    ctx.quadraticCurveTo(cx + px(47), bodyBottom + px(80), cx + px(44), bodyBottom + px(44));
+    ctx.lineTo(cx - px(7), bodyBottom + px(70));
+    ctx.quadraticCurveTo(cx - px(28), bodyBottom + px(108), cx + px(6), bodyBottom + px(112));
+    ctx.quadraticCurveTo(cx + px(42), bodyBottom + px(106), cx + px(38), bodyBottom + px(66));
   };
 
   ctx.save();
