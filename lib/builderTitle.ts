@@ -1,5 +1,3 @@
-import type { IconKind } from "./render/motifs";
-
 /**
  * Builder title generator.
  *
@@ -133,18 +131,4 @@ export function generateBuilderTitle(
   const adj = ADJECTIVES[seed % ADJECTIVES.length];
   const noun = nouns[Math.floor(seed / ADJECTIVES.length) % nouns.length];
   return `${adj} ${noun}`;
-}
-
-/** Which discipline chips light up for a given stack string. */
-export function activeIconsFor(stack: string, role: string): Set<IconKind> {
-  const h = `${stack} ${role}`.toLowerCase();
-  const active = new Set<IconKind>();
-  if (/code|dev|engineer|backend|frontend|full ?stack|react|node|rust|go|python|web/.test(h))
-    active.add("code");
-  if (/\bai\b|ml|llm|genai|agent|rag|nlp/.test(h)) active.add("ai");
-  if (/research|science|data|founder|product|strategy|think/.test(h)) active.add("brain");
-  if (/design|ux|ui|brand|content|writ|type/.test(h)) active.add("text");
-  if (/web3|crypto|chain|network|infra|devops|distributed|protocol/.test(h))
-    active.add("nodes");
-  return active;
 }

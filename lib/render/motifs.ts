@@ -6,7 +6,6 @@ import {
   font,
   grain,
   roundRect,
-  squiggle,
   starburst,
   trackedText,
 } from "./primitives";
@@ -47,16 +46,17 @@ export function mirroredHeadline(ctx: Ctx, w: number, opts: { top?: number } = {
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = COLORS.gold;
 
-  // size the type so a line spans slightly wider than the canvas (edge-cropped)
+  // Sized so a line spans the full canvas width; positioned so the caps are
+  // whole rather than sliced by the top edge.
   let size = 200;
   ctx.font = font(FONTS.display, size, 900);
-  size = Math.round((size * (w * 1.06)) / ctx.measureText(lines[0]).width);
+  size = Math.round((size * (w * 1.02)) / ctx.measureText(lines[0]).width);
 
-  const lineH = size * 0.86;
+  const lineH = size * 0.9;
   lines.forEach((line, i) => {
     ctx.font = font(FONTS.display, size, 900);
-    ctx.globalAlpha = i === 0 ? 1 : 0.92;
-    ctx.fillText(line, w / 2, top + size * 0.78 + i * lineH);
+    ctx.globalAlpha = 0.92;
+    ctx.fillText(line, w / 2, top + size * 0.86 + i * lineH);
   });
   ctx.restore();
 }
@@ -90,12 +90,12 @@ export function decorations(
   const [yx, yy, yr] = layout.yellowBurst;
   ctx.save();
   ctx.fillStyle = COLORS.gold;
-  starburst(ctx, yx, yy, yr, yr * 0.42, 9, 0.35, 12);
+  starburst(ctx, yx, yy, yr, yr * 0.32, 9, 0.35, 12);
   ctx.fill();
   ctx.restore();
 
   const [sx, sy, sw] = layout.squiggle;
-  squiggle(ctx, sx, sy, sw, sw * 0.075, 3, Math.max(3, w * 0.005), COLORS.pink);
+  loopySquiggle(ctx, sx, sy, sw, Math.max(3.5, w * 0.0055), COLORS.pink);
 
   const [dx, dy, ds] = layout.deva;
   devaBadge(ctx, dx, dy, ds, { rotate: -0.07, glow: true });
@@ -109,6 +109,34 @@ export function decorations(
 
   sparkle(ctx, w * 0.9, h * 0.76, w * 0.028, COLORS.cream, 0.75);
   sparkle(ctx, w * 0.955, h * 0.735, w * 0.015, COLORS.cream, 0.5);
+}
+
+/**
+ * A loose ribbon that dips, loops back on itself and trails off — closer to the
+ * hand-drawn accent in the brand artwork than an even sine wave.
+ */
+export function loopySquiggle(
+  ctx: Ctx,
+  x: number,
+  y: number,
+  width: number,
+  lineWidth: number,
+  color: string,
+) {
+  const u = width / 100;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.bezierCurveTo(x + 14 * u, y - 22 * u, x + 34 * u, y - 20 * u, x + 40 * u, y + 2 * u);
+  ctx.bezierCurveTo(x + 45 * u, y + 20 * u, x + 26 * u, y + 30 * u, x + 20 * u, y + 16 * u);
+  ctx.bezierCurveTo(x + 15 * u, y + 4 * u, x + 34 * u, y - 4 * u, x + 52 * u, y + 6 * u);
+  ctx.bezierCurveTo(x + 72 * u, y + 17 * u, x + 86 * u, y + 6 * u, x + 100 * u, y - 8 * u);
+  ctx.stroke();
+  ctx.restore();
 }
 
 /** Four-point twinkle. */
@@ -144,7 +172,7 @@ export function lanyard(ctx: Ctx, cx: number, cardTop: number, requestedScale = 
   // The card's top moves as it grows for a tall photo. Shrink the hardware to
   // fit rather than letting the strap collapse to nothing above it.
   const scale = Math.min(requestedScale, cardTop / 300);
-  const strapW = 92 * scale;
+  const strapW = 76 * scale;
   const hookTop = cardTop - 214 * scale;
   const strapLen = Math.max(1, hookTop + 22 * scale);
 
@@ -187,106 +215,129 @@ export function lanyard(ctx: Ctx, cx: number, cardTop: number, requestedScale = 
   metal(ctx, cx, hookTop, cardTop, scale);
 }
 
-/** Silver swivel hook: barrel, ring and the sprung hook arm. */
+/**
+ * The hardware, top to bottom: a triangular D-ring the webbing folds through, a
+ * knurled swivel barrel, then the snap hook whose nose drops into the card's
+ * punch slot.
+ */
 function metal(ctx: Ctx, cx: number, top: number, cardTop: number, scale: number) {
   const g = (x0: number, x1: number) => {
     const grd = ctx.createLinearGradient(x0, 0, x1, 0);
     grd.addColorStop(0, COLORS.silverLo);
-    grd.addColorStop(0.28, COLORS.silverHi);
-    grd.addColorStop(0.55, COLORS.silver);
+    grd.addColorStop(0.22, COLORS.silverHi);
+    grd.addColorStop(0.46, COLORS.silver);
+    grd.addColorStop(0.72, COLORS.silverHi);
     grd.addColorStop(1, COLORS.silverLo);
     return grd;
   };
 
+  /* ---- triangular D-ring: narrow at the top, splayed at the base ---- */
+  const ringTopW = 30 * scale;
+  const ringBotW = 104 * scale;
+  const ringH = 74 * scale;
   ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.35)";
-  ctx.shadowBlur = 18 * scale;
-  ctx.shadowOffsetY = 6 * scale;
-
-  // swivel barrel
-  const bw = 76 * scale;
-  const bh = 54 * scale;
-  ctx.fillStyle = g(cx - bw / 2, cx + bw / 2);
-  roundRect(ctx, cx - bw / 2, top, bw, bh, 12 * scale);
-  ctx.fill();
-
-  // trapezoid shoulder
-  ctx.beginPath();
-  ctx.moveTo(cx - bw * 0.42, top + bh);
-  ctx.lineTo(cx + bw * 0.42, top + bh);
-  ctx.lineTo(cx + bw * 0.26, top + bh + 26 * scale);
-  ctx.lineTo(cx - bw * 0.26, top + bh + 26 * scale);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-
-  // hook body — an open C reaching down to the card
-  const hookTop = top + bh + 20 * scale;
-  const hookH = cardTop - hookTop + 34 * scale;
-  const hookW = 92 * scale;
-  ctx.save();
-  ctx.strokeStyle = g(cx - hookW / 2, cx + hookW / 2);
-  ctx.lineWidth = 22 * scale;
-  ctx.lineCap = "round";
+  ctx.shadowColor = "rgba(0,0,0,0.4)";
+  ctx.shadowBlur = 16 * scale;
+  ctx.shadowOffsetY = 5 * scale;
+  ctx.strokeStyle = g(cx - ringBotW / 2, cx + ringBotW / 2);
+  ctx.lineWidth = 13 * scale;
   ctx.lineJoin = "round";
-  ctx.shadowColor = "rgba(0,0,0,0.3)";
-  ctx.shadowBlur = 14 * scale;
   ctx.beginPath();
-  ctx.moveTo(cx - hookW * 0.22, hookTop);
-  ctx.lineTo(cx - hookW * 0.4, hookTop + hookH * 0.52);
-  ctx.quadraticCurveTo(
-    cx - hookW * 0.5,
-    hookTop + hookH,
-    cx + hookW * 0.06,
-    hookTop + hookH * 0.94,
-  );
-  ctx.quadraticCurveTo(
-    cx + hookW * 0.5,
-    hookTop + hookH * 0.86,
-    cx + hookW * 0.34,
-    hookTop + hookH * 0.34,
-  );
+  ctx.moveTo(cx - ringTopW / 2, top);
+  ctx.lineTo(cx - ringBotW / 2, top + ringH);
+  ctx.lineTo(cx + ringBotW / 2, top + ringH);
+  ctx.lineTo(cx + ringTopW / 2, top);
+  ctx.closePath();
   ctx.stroke();
   ctx.restore();
 
-  // sprung gate
+  /* ---- swivel barrel hanging from the ring's base ---- */
+  const barrelTop = top + ringH + 6 * scale;
+  const bw = 62 * scale;
+  const bh = 62 * scale;
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.38)";
+  ctx.shadowBlur = 14 * scale;
+  ctx.shadowOffsetY = 5 * scale;
+  ctx.fillStyle = g(cx - bw / 2, cx + bw / 2);
+  roundRect(ctx, cx - bw / 2, barrelTop, bw, bh, 10 * scale);
+  ctx.fill();
+  ctx.restore();
+
+  // knurling: fine vertical grooves across the barrel
+  ctx.save();
+  roundRect(ctx, cx - bw / 2, barrelTop, bw, bh, 10 * scale);
+  ctx.clip();
+  ctx.strokeStyle = "rgba(0,0,0,0.22)";
+  ctx.lineWidth = 1.6 * scale;
+  for (let gx = cx - bw / 2 + 6 * scale; gx < cx + bw / 2; gx += 7 * scale) {
+    ctx.beginPath();
+    ctx.moveTo(gx, barrelTop + bh * 0.2);
+    ctx.lineTo(gx, barrelTop + bh * 0.8);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  /* ---- bolt snap: a shaft into a near-closed ring with a sprung gate ---- */
+  const barrelBottom = barrelTop + bh;
+  const R = 46 * scale;
+  // Drop the ring so its nose sits over the card's punch slot.
+  const hy = Math.max(barrelBottom + R * 0.7, cardTop + 34 * scale - R);
+  // The throat opens to the upper right; the shaft enters at the top.
+  const gapStart = -Math.PI * 0.06;
+  const gapEnd = Math.PI * 1.56;
+
+  ctx.save();
+  ctx.strokeStyle = g(cx - R, cx + R);
+  ctx.lineWidth = 22 * scale;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.shadowColor = "rgba(0,0,0,0.32)";
+  ctx.shadowBlur = 12 * scale;
+  ctx.shadowOffsetY = 4 * scale;
+
+  ctx.beginPath();
+  ctx.moveTo(cx, barrelBottom - 4 * scale);
+  ctx.lineTo(cx, hy - R);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(cx, hy, R, gapStart, gapEnd);
+  ctx.stroke();
+  ctx.restore();
+
+  // sprung gate bridging the throat
   ctx.save();
   ctx.strokeStyle = COLORS.silverLo;
   ctx.lineWidth = 7 * scale;
   ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.moveTo(cx - hookW * 0.2, hookTop + hookH * 0.22);
-  ctx.lineTo(cx + hookW * 0.26, hookTop + hookH * 0.66);
+  ctx.moveTo(cx + Math.cos(gapEnd) * R, hy + Math.sin(gapEnd) * R);
+  ctx.lineTo(cx + Math.cos(gapStart) * R, hy + Math.sin(gapStart) * R);
   ctx.stroke();
   ctx.restore();
 }
 
 /* ------------------------------------------------------------- icon strip */
 
-export type IconKind = "code" | "ai" | "brain" | "text" | "nodes";
-export const ICON_ORDER: IconKind[] = ["code", "ai", "brain", "text", "nodes"];
+export type IconKind = "code" | "palm" | "wave" | "rocket" | "247";
+
+/**
+ * The chip column, themed to this event rather than to generic dev disciplines:
+ * code, a Goa palm, the Arabian Sea, shipping, and 247 — the seat count the
+ * whole residency is named for.
+ */
+export const ICON_ORDER: IconKind[] = ["code", "palm", "wave", "rocket", "247"];
 
 /**
  * Vertical column of outlined discipline chips down the card's left gutter.
  * `active` (set from the user's stack) renders a chip filled rather than hollow.
  */
-export function iconColumn(
-  ctx: Ctx,
-  x: number,
-  y: number,
-  size: number,
-  gap: number,
-  active: Set<IconKind> = new Set(),
-) {
+export function iconColumn(ctx: Ctx, x: number, y: number, size: number, gap: number) {
   ICON_ORDER.forEach((kind, i) => {
     const cy = y + i * (size + gap);
-    const on = active.has(kind);
     ctx.save();
     roundRect(ctx, x, cy, size, size, size * 0.16);
-    if (on) {
-      ctx.fillStyle = COLORS.ink;
-      ctx.fill();
-    }
     ctx.strokeStyle = COLORS.ink;
     ctx.lineWidth = Math.max(1.5, size * 0.055);
     ctx.stroke();
@@ -294,10 +345,9 @@ export function iconColumn(
 
     ctx.save();
     ctx.translate(x + size / 2, cy + size / 2);
-    const fg = on ? COLORS.kraft : COLORS.ink;
-    ctx.strokeStyle = fg;
-    ctx.fillStyle = fg;
-    ctx.lineWidth = Math.max(1.4, size * 0.06);
+    ctx.strokeStyle = COLORS.ink;
+    ctx.fillStyle = COLORS.ink;
+    ctx.lineWidth = Math.max(2, size * 0.085);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.textAlign = "center";
@@ -323,67 +373,90 @@ function drawIcon(ctx: Ctx, kind: IconKind, s: number) {
       ctx.stroke();
       break;
     }
-    case "ai": {
-      ctx.font = font(FONTS.display, s * 1.25, 900);
-      ctx.fillText("AI", 0, s * 0.06);
-      break;
-    }
-    case "brain": {
-      // Kept deliberately coarse: at ~40px chip size, fine sulci turn to mud.
-      // A lobed outline plus one central fissure is what actually reads.
+    case "palm": {
+      const crown: [number, number] = [-s * 0.08, -s * 0.3];
       ctx.beginPath();
-      ctx.arc(0, 0, s * 0.62, 0, Math.PI * 2);
+      ctx.moveTo(s * 0.3, s * 0.78);
+      ctx.quadraticCurveTo(s * 0.04, s * 0.24, crown[0], crown[1]);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(0, -s * 0.62);
-      ctx.lineTo(0, s * 0.62);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(-s * 0.44, -s * 0.24);
-      ctx.quadraticCurveTo(-s * 0.06, -s * 0.14, -s * 0.34, s * 0.16);
-      ctx.moveTo(s * 0.44, s * 0.24);
-      ctx.quadraticCurveTo(s * 0.06, s * 0.14, s * 0.34, -s * 0.16);
+      for (const [ex, ey] of [
+        [-s * 0.86, -s * 0.34],
+        [-s * 0.3, -s * 0.86],
+        [s * 0.48, -s * 0.72],
+        [s * 0.84, -s * 0.16],
+      ] as const) {
+        ctx.moveTo(crown[0], crown[1]);
+        ctx.quadraticCurveTo((crown[0] + ex) * 0.5, ey - s * 0.34, ex, ey);
+      }
       ctx.stroke();
       break;
     }
-    case "text": {
-      ctx.font = font(FONTS.display, s * 1.3, 900);
-      ctx.fillText("T", 0, s * 0.08);
-      // selection handles around the glyph
-      ctx.lineWidth = Math.max(1, s * 0.08);
-      for (const [hx, hy] of [
-        [-s * 0.6, -s * 0.6],
-        [s * 0.6, -s * 0.6],
-        [-s * 0.6, s * 0.6],
-        [s * 0.6, s * 0.6],
-      ]) {
-        ctx.strokeRect(hx - s * 0.08, hy - s * 0.08, s * 0.16, s * 0.16);
-      }
-      break;
-    }
-    case "nodes": {
-      // hub-and-spoke network
-      const hub: [number, number] = [0, 0];
-      const leaves: [number, number][] = [
-        [0, -s * 0.66],
-        [-s * 0.62, s * 0.34],
-        [s * 0.62, s * 0.34],
-      ];
-      ctx.lineWidth = Math.max(1.1, ctx.lineWidth * 0.8);
+    case "wave": {
       ctx.beginPath();
-      for (const [lx, ly] of leaves) {
-        ctx.moveTo(hub[0], hub[1]);
-        ctx.lineTo(lx, ly);
+      for (const y of [-s * 0.3, s * 0.3]) {
+        ctx.moveTo(-s * 0.82, y);
+        ctx.bezierCurveTo(-s * 0.5, y - s * 0.44, -s * 0.14, y + s * 0.44, s * 0.2, y);
+        ctx.bezierCurveTo(s * 0.46, y - s * 0.32, s * 0.62, y - s * 0.2, s * 0.82, y - s * 0.12);
       }
       ctx.stroke();
-      for (const [px, py] of [hub, ...leaves]) {
-        ctx.beginPath();
-        ctx.arc(px, py, s * 0.19, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      break;
+    }
+    case "rocket": {
+      // fuselage
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.82);
+      ctx.bezierCurveTo(s * 0.56, -s * 0.26, s * 0.44, s * 0.1, s * 0.34, s * 0.36);
+      ctx.lineTo(-s * 0.34, s * 0.36);
+      ctx.bezierCurveTo(-s * 0.44, s * 0.1, -s * 0.56, -s * 0.26, 0, -s * 0.82);
+      ctx.closePath();
+      ctx.stroke();
+      // fins
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.38, s * 0.0);
+      ctx.lineTo(-s * 0.8, s * 0.52);
+      ctx.lineTo(-s * 0.34, s * 0.36);
+      ctx.moveTo(s * 0.38, s * 0.0);
+      ctx.lineTo(s * 0.8, s * 0.52);
+      ctx.lineTo(s * 0.34, s * 0.36);
+      ctx.stroke();
+      // porthole
+      ctx.beginPath();
+      ctx.arc(0, -s * 0.22, s * 0.17, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case "247": {
+      ctx.font = font(FONTS.display, s * 1.02, 900);
+      ctx.fillText("247", 0, s * 0.06);
       break;
     }
   }
+}
+
+/** The same chips laid out left-to-right, for the card back. */
+export function iconRow(ctx: Ctx, x: number, y: number, size: number, gap: number) {
+  ICON_ORDER.forEach((kind, i) => {
+    const cx = x + i * (size + gap);
+    ctx.save();
+    roundRect(ctx, cx, y, size, size, size * 0.16);
+    ctx.strokeStyle = COLORS.ink;
+    ctx.lineWidth = Math.max(1.4, size * 0.055);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(cx + size / 2, y + size / 2);
+    ctx.strokeStyle = COLORS.ink;
+    ctx.fillStyle = COLORS.ink;
+    ctx.lineWidth = Math.max(1.8, size * 0.085);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    drawIcon(ctx, kind, size * 0.5);
+    ctx.restore();
+  });
 }
 
 /* ----------------------------------------------------------------- barcode */

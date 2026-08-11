@@ -8,7 +8,7 @@ Two formats share one upload/crop/HEIC pipeline:
 
 | Mode | Output | Notes |
 | --- | --- | --- |
-| **Builder ID Card** | 1080×1350 poster | Double-sided — front carries the photo, name, stack, generated builder title and a real CODE128 barcode; back carries the brand lockup |
+| **Builder ID Card** | 1080×1350 poster | Double-sided — front carries the photo, name, stack, generated builder title and a real CODE128 barcode; back frames the wordmark in the ogee-arch cartouche from the HH Goa banner artwork |
 | **PFP Frame** | 1080×1080 | Gold/pink ring, arced wordmark on a text path, गोवा sticker badge |
 
 ## Running it
@@ -45,8 +45,9 @@ asset — so text stays live and the output is crisp at any resolution.
 lib/brand.ts            colour / type / event tokens (single source of truth)
 lib/render/primitives   starbursts, squiggles, paper grain, tracked text,
                         text auto-fit, cover-fit with focal point, गोवा badge
-lib/render/motifs       poster backdrop, mirrored headline, lanyard + metal
-                        clip, discipline icon chips, CODE128 barcode, card shell
+lib/render/motifs       poster backdrop, mirrored headline, lanyard (strap,
+                        D-ring, swivel barrel, bolt snap), icon chips,
+                        CODE128 barcode, card shell
 lib/render/idcard       front + back composition (1080×1350)
 lib/render/pfp          profile-picture ring (1080×1080)
 lib/builderTitle        builder-title generation + which icon chips light up
@@ -95,6 +96,13 @@ discards the crop you set on the other.
 `scripts/e2e.ts` guards this with `fixtures/corners.png`, which carries a
 magenta block in each corner: all four must survive in Whole photo mode, and
 must be gone in Fill frame mode.
+
+### The chip column
+
+Five marks themed to this event rather than to generic dev disciplines: code, a
+Goa palm, the Arabian Sea, a rocket, and **247** — the seat count the residency
+is named for. They run down the card's left gutter on the front and repeat as a
+horizontal strip on the back.
 
 ### Builder titles
 

@@ -56,39 +56,6 @@ export function starburst(
   ctx.closePath();
 }
 
-/** Loose hand-drawn squiggle running left→right through a set of wave nodes. */
-export function squiggle(
-  ctx: Ctx,
-  x: number,
-  y: number,
-  width: number,
-  amplitude: number,
-  waves: number,
-  lineWidth: number,
-  color: string,
-) {
-  ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = lineWidth;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(x, y);
-  const step = width / waves;
-  for (let i = 0; i < waves; i++) {
-    const dir = i % 2 === 0 ? -1 : 1;
-    ctx.bezierCurveTo(
-      x + step * i + step * 0.25,
-      y + amplitude * dir * 1.35,
-      x + step * i + step * 0.75,
-      y + amplitude * dir * 1.35,
-      x + step * (i + 1),
-      y,
-    );
-  }
-  ctx.stroke();
-  ctx.restore();
-}
-
 /* ------------------------------------------------------------------- paper */
 
 /** Deterministic PRNG so grain/jitter is stable across renders and machines. */
