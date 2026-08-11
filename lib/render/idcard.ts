@@ -605,9 +605,11 @@ export function renderIdCard(
     // so the foot stays in the hole while the strap swings — a dead-centre
     // vertical reads as a sticker rather than something bearing weight.
     ctx.translate(L.punch.x + L.punch.w / 2, L.punch.y + L.punch.h / 2);
-    ctx.rotate(-0.035);
+    // A firmer lean: the strap and hardware end up left of centre while the
+    // foot stays in the hole, which is what "hanging off it" looks like.
+    ctx.rotate(-0.085);
     ctx.translate(-(L.punch.x + L.punch.w / 2), -(L.punch.y + L.punch.h / 2));
-    lanyard(ctx, W / 2, L.y, 1.45, assets.clip, assets.lanyard);
+    lanyard(ctx, W / 2 - 10, L.y, 1.75, assets.clip, assets.lanyard);
     ctx.restore();
   }
   ctx.restore();

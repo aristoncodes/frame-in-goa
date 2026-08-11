@@ -171,9 +171,17 @@ export function sparkle(
  * header text.
  */
 const CLIP_WEIGHT = 1.18;
-/** Assembly height in reference units, measured at a 130px strap. */
+/** Overall assembly height in reference units, measured at a 130px strap. */
 const CLIP_UNITS = 370;
-const clipHeight = (scale: number) => CLIP_UNITS * ((76 * scale) / 130) * CLIP_WEIGHT;
+/**
+ * Distance from the assembly's top to the hook's lowest point. Shorter than the
+ * full height — the hook bottoms out before the box does — and seating by the
+ * full height instead left the foot short of the punch slot.
+ */
+const CLIP_FOOT_UNITS = 358;
+const clipUnit = (scale: number) => ((76 * scale) / 130) * CLIP_WEIGHT;
+const clipHeight = (scale: number) => CLIP_UNITS * clipUnit(scale);
+const clipFootDrop = (scale: number) => CLIP_FOOT_UNITS * clipUnit(scale);
 
 /**
  * Pink strap from the top edge + black starburst rivet + silver swivel hook,
@@ -212,9 +220,10 @@ export function lanyard(
   // Assembly runs ~202 units from the loop's top bar to the foot of the hook;
   // seat it so that foot lands inside the card's punch slot.
   // Seat it so the hook's foot lands inside the card's punch slot.
-  // The hook's foot lands mid-slot, so a clear length of chrome shows through
-  // the opening rather than a sliver clipped at the card's edge.
-  const hookTop = cardTop + 52 - clipHeight(scale);
+  // Seated on the hook's foot, not the assembly's box: the foot lands mid-slot,
+  // which puts the hardware clear above the card's top edge and leaves only the
+  // hook's lowest curve tucked into the hole.
+  const hookTop = cardTop + 38 - clipFootDrop(scale);
   const strapLen = Math.max(1, hookTop + 14 * scale);
 
   // strap: near-parallel webbing tapering slightly into the swivel
