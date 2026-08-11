@@ -212,7 +212,9 @@ export function lanyard(
   // Assembly runs ~202 units from the loop's top bar to the foot of the hook;
   // seat it so that foot lands inside the card's punch slot.
   // Seat it so the hook's foot lands inside the card's punch slot.
-  const hookTop = cardTop + 34 - clipHeight(scale);
+  // The hook's foot lands mid-slot, so a clear length of chrome shows through
+  // the opening rather than a sliver clipped at the card's edge.
+  const hookTop = cardTop + 52 - clipHeight(scale);
   const strapLen = Math.max(1, hookTop + 14 * scale);
 
   // strap: near-parallel webbing tapering slightly into the swivel

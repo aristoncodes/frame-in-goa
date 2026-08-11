@@ -9,7 +9,11 @@ export type Ctx = CanvasRenderingContext2D;
 
 /* ------------------------------------------------------------------ shapes */
 
-export function roundRect(
+/**
+ * Appends a rounded rectangle to the current path *without* starting a new one,
+ * so it can be combined with other subpaths — a clip made of two regions, say.
+ */
+export function addRoundRect(
   ctx: Ctx,
   x: number,
   y: number,
@@ -18,13 +22,24 @@ export function roundRect(
   r: number,
 ) {
   const rr = Math.min(r, w / 2, h / 2);
-  ctx.beginPath();
   ctx.moveTo(x + rr, y);
   ctx.arcTo(x + w, y, x + w, y + h, rr);
   ctx.arcTo(x + w, y + h, x, y + h, rr);
   ctx.arcTo(x, y + h, x, y, rr);
   ctx.arcTo(x, y, x + w, y, rr);
   ctx.closePath();
+}
+
+export function roundRect(
+  ctx: Ctx,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
+  ctx.beginPath();
+  addRoundRect(ctx, x, y, w, h, r);
 }
 
 /**

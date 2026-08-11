@@ -17,6 +17,7 @@ import {
   Ctx,
   devaBadge,
   drawPhoto,
+  addRoundRect,
   ellipsize,
   fitFontSize,
   font,
@@ -138,6 +139,9 @@ export function layoutName(ctx: Ctx, raw: string, maxWidth = NAME_WIDTH): NameLa
 
 /** One fixed geometry, shared by both faces and by every photo. */
 export function cardLayout() {
+  // Mirrors the punch hole cardShell cuts, so the lanyard can be clipped to it.
+  const punchW = CARD_W * 0.19;
+  const punchH = CARD_H * 0.026;
   return {
     x: CARD_X,
     y: CARD_Y,
@@ -145,6 +149,12 @@ export function cardLayout() {
     h: CARD_H,
     r: CARD_R,
     photo: { x: PHOTO_X, y: CARD_Y + HEADER_H, w: SLOT_W, h: SLOT_H },
+    punch: {
+      x: CARD_X + (CARD_W - punchW) / 2,
+      y: CARD_Y + CARD_H * 0.032,
+      w: punchW,
+      h: punchH,
+    },
   };
 }
 
@@ -580,9 +590,17 @@ export function renderIdCard(
   poster(ctx, assets);
   if (face === "front") drawFront(ctx, env, data, L, assets);
   else drawBack(ctx, env, L, assets);
-  // Drawn last so the snap hook passes in front of the card and into its punch
-  // slot, the way the clip actually hangs.
+  // The clip is threaded *through* the punch slot, not laid on top of the card:
+  // it shows above the card's top edge and again inside the slot, while the
+  // strip of kraft between them covers it — which is what selling "through"
+  // rather than "on top of" depends on.
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, W, L.y);
+  addRoundRect(ctx, L.punch.x, L.punch.y, L.punch.w, L.punch.h, L.punch.h / 2);
+  ctx.clip();
   lanyard(ctx, W / 2, L.y, 1.45, assets.clip, assets.lanyard);
+  ctx.restore();
   ctx.restore();
 }
 
