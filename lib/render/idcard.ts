@@ -534,6 +534,7 @@ export function renderIdCard(
   data: CardData,
   face: CardFace,
   logo: CanvasImageSource | null = null,
+  clipArt: CanvasImageSource | null = null,
 ) {
   // Both faces are laid out from the same geometry, so flipping never changes
   // the card's silhouette even when a tall photo has grown it.
@@ -545,7 +546,7 @@ export function renderIdCard(
   else drawBack(ctx, logo, L);
   // Drawn last so the snap hook passes in front of the card and into its punch
   // slot, the way the clip actually hangs.
-  lanyard(ctx, W / 2, L.y, 1.45);
+  lanyard(ctx, W / 2, L.y, 1.45, clipArt);
   ctx.restore();
 }
 

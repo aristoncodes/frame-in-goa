@@ -48,7 +48,7 @@ lib/brand.ts            colour / type / event tokens (single source of truth)
 lib/render/primitives   starbursts, squiggles, paper grain, tracked text,
                         text auto-fit, contain/cover photo fitting, गोवा badge
 lib/render/motifs       poster backdrop, mirrored headline, lanyard (strap,
-                        D-ring, swivel barrel, bolt snap), icon chips,
+                        wire loop, collar, trigger body, J-hook), icon chips,
                         CODE128 barcode, card shell
 lib/render/idcard       front + back composition (1080×1350)
 lib/render/pfp          profile-picture ring (1080×1080)
@@ -255,6 +255,7 @@ npx vercel --prod --yes    # redeploy so the token is picked up
 | `BLOB_READ_WRITE_TOKEN` | for share links | Vercel Blob store. Create a Blob store in the Vercel dashboard and it is injected automatically. Without it, share falls back to download + pre-filled tweet. |
 | `NEXT_PUBLIC_SITE_URL` | no | Canonical origin for metadata. Defaults to the Vercel production URL. |
 | `NEXT_PUBLIC_LOGO_URL` | no | Point at the official HH Goa lockup to use that artwork as-is on the card back. Unset, the back draws the wordmark from the same type system as the rest of the poster. |
+| `NEXT_PUBLIC_CLIP_URL` | no | Point at a **transparent PNG of the lanyard clip** to composite the real photograph instead of the drawn one. Sized into the same box, so the strap still meets it correctly. Unset, the clip is drawn in code. |
 
 After deploying, check the link preview with
 [cards-dev.twitter.com/validator](https://cards-dev.twitter.com/validator) or by

@@ -61,6 +61,7 @@ export default function Generator() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
 
   const [logo, setLogo] = useState<HTMLImageElement | null>(null);
+  const [clipArt, setClipArt] = useState<HTMLImageElement | null>(null);
 
   // Background replacement: the cut-out is kept alongside the original so the
   // toggle is instant and always reversible.
@@ -84,12 +85,16 @@ export default function Generator() {
     // Optional: point NEXT_PUBLIC_LOGO_URL at the official HH Goa lockup and the
     // card back uses that artwork as-is. Unset, the back draws the wordmark from
     // the same type system as everything else (see drawBack).
-    const logoUrl = process.env.NEXT_PUBLIC_LOGO_URL;
-    if (!logoUrl) return;
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => setLogo(img);
-    img.src = logoUrl;
+    const load = (url: string | undefined, set: (i: HTMLImageElement) => void) => {
+      if (!url) return;
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => set(img);
+      img.src = url;
+    };
+    load(process.env.NEXT_PUBLIC_LOGO_URL, setLogo);
+    // Optional cut-out artwork of the lanyard clip, used in place of the drawn one.
+    load(process.env.NEXT_PUBLIC_CLIP_URL, setClipArt);
   }, []);
 
   /** What the renderers actually composite: the cut-out when it's on and ready. */
@@ -135,11 +140,11 @@ export default function Generator() {
 
     if (mode === "card") {
       const data: CardData = { ...identity, builderTitle, photo: source, transform };
-      renderIdCard(ctx, browserEnv, data, face, logo);
+      renderIdCard(ctx, browserEnv, data, face, logo, clipArt);
     } else {
       renderPfp(ctx, { photo: source, transform });
     }
-  }, [mode, face, identity, builderTitle, source, transform, logo]);
+  }, [mode, face, identity, builderTitle, source, transform, logo, clipArt]);
 
   // One composite per animation frame, cancelled on the next change, so holding
   // a key or dragging never queues up a backlog of full-res renders.
@@ -193,13 +198,14 @@ export default function Generator() {
           { ...identity, builderTitle, photo: source, transform },
           which === "pfp" ? "front" : which,
           logo,
+          clipArt,
         );
       } else {
         renderPfp(ctx, { photo: source, transform });
       }
       return canvasToBlob(off);
     },
-    [mode, face, identity, builderTitle, source, transform, logo],
+    [mode, face, identity, builderTitle, source, transform, logo, clipArt],
   );
 
   /**
@@ -225,10 +231,10 @@ export default function Generator() {
     };
     const [front, back, pfp] = await Promise.all([
       make(ID_CARD_SIZE.w, ID_CARD_SIZE.h, (ctx) =>
-        renderIdCard(ctx, browserEnv, data, "front", logo),
+        renderIdCard(ctx, browserEnv, data, "front", logo, clipArt),
       ),
       make(ID_CARD_SIZE.w, ID_CARD_SIZE.h, (ctx) =>
-        renderIdCard(ctx, browserEnv, data, "back", logo),
+        renderIdCard(ctx, browserEnv, data, "back", logo, clipArt),
       ),
       make(PFP_SIZE.w, PFP_SIZE.h, (ctx) =>
         renderPfp(ctx, { photo: source, transform: transforms.pfp }),
@@ -239,7 +245,7 @@ export default function Generator() {
       { key: "back", label: "ID card — back", fileName: `hhgoa2026-builder-id-back-${slug}.png`, blob: back },
       { key: "pfp", label: "PFP frame", fileName: `hhgoa2026-pfp-${slug}.png`, blob: pfp },
     ];
-  }, [identity, builderTitle, source, transforms, logo]);
+  }, [identity, builderTitle, source, transforms, logo, clipArt]);
 
   const fileName = (which: string) =>
     `hhgoa2026-${mode === "card" ? `builder-id-${which}` : "pfp"}-${slugify(

@@ -165,17 +165,34 @@ export function sparkle(
 /* ----------------------------------------------------------------- lanyard */
 
 /**
+ * Clip geometry, shared so the assembly's drawn height and the height it is
+ * seated at can never drift apart — when they did, the hook ran into the card's
+ * header text.
+ */
+const CLIP_WEIGHT = 1.18;
+/** Assembly height in reference units, measured at a 130px strap. */
+const CLIP_UNITS = 370;
+const clipHeight = (scale: number) => CLIP_UNITS * ((76 * scale) / 130) * CLIP_WEIGHT;
+
+/**
  * Pink strap from the top edge + black starburst rivet + silver swivel hook,
  * ending just above `cardTop` so the clip visually enters the card's punch hole.
  */
-export function lanyard(ctx: Ctx, cx: number, cardTop: number, requestedScale = 1) {
+export function lanyard(
+  ctx: Ctx,
+  cx: number,
+  cardTop: number,
+  requestedScale = 1,
+  clipArt: CanvasImageSource | null = null,
+) {
   // The card's top moves as it grows for a tall photo. Shrink the hardware to
   // fit rather than letting the strap collapse to nothing above it.
   const scale = Math.min(requestedScale, cardTop / 300);
   const strapW = 76 * scale;
   // Assembly runs ~202 units from the loop's top bar to the foot of the hook;
   // seat it so that foot lands inside the card's punch slot.
-  const hookTop = cardTop + 44 - 202 * scale;
+  // Seat it so the hook's foot lands inside the card's punch slot.
+  const hookTop = cardTop + 34 - clipHeight(scale);
   const strapLen = Math.max(1, hookTop + 14 * scale);
 
   // strap: near-parallel webbing tapering slightly into the swivel
@@ -214,122 +231,158 @@ export function lanyard(ctx: Ctx, cx: number, cardTop: number, requestedScale = 
   ctx.stroke();
   ctx.restore();
 
-  metal(ctx, cx, hookTop, cardTop, scale);
+  if (clipArt) {
+    // Real photography of the clip, when supplied: drawn into the same box the
+    // vector version occupies so the strap still meets it correctly.
+    const iw = (clipArt as HTMLImageElement).width;
+    const ih = (clipArt as HTMLImageElement).height;
+    const h = clipHeight(scale);
+    const w = (iw / ih) * h;
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.4)";
+    ctx.shadowBlur = 18 * scale;
+    ctx.shadowOffsetY = 6 * scale;
+    ctx.drawImage(clipArt, cx - w / 2, hookTop, w, h);
+    ctx.restore();
+  } else {
+    metal(ctx, cx, hookTop, cardTop, scale);
+  }
 }
 
 /**
- * The hardware, modelled on a real trigger snap: a wire loop the webbing folds
- * over — **wide at the top, tapering to a point** — then a swivel rivet, a flat
- * tapered body, and a J-hook with a sprung gate across its throat.
+ * Chrome trigger snap, drawn to match the reference photograph.
  *
- * Proportions come from measuring a photograph of the actual clip, expressed
- * relative to the strap width so the whole assembly scales as one piece.
+ * Top to bottom: a round-wire loop with a flat top and generously rounded
+ * corners whose legs converge on a mushroom collar, then a flat tapered body
+ * carrying the spring trigger, then the J-hook that drops into the punch slot.
+ *
+ * Proportions are taken from the reference at a 130px strap and expressed
+ * relative to the strap width, so the whole assembly scales as one piece.
  */
 function metal(ctx: Ctx, cx: number, top: number, cardTop: number, s: number) {
-  const g = (x0: number, x1: number) => {
+  const strapW = 76 * s;
+  const k = (strapW / 130) * CLIP_WEIGHT;
+  const px = (n: number) => n * k;
+
+  /** Chrome: dark edges, two bright specular bands, a mid tone between. */
+  const chrome = (x0: number, x1: number) => {
     const grd = ctx.createLinearGradient(x0, 0, x1, 0);
-    grd.addColorStop(0, COLORS.silverLo);
-    grd.addColorStop(0.18, COLORS.silverHi);
-    grd.addColorStop(0.42, COLORS.silver);
-    grd.addColorStop(0.62, COLORS.silverHi);
-    grd.addColorStop(1, COLORS.silverLo);
+    grd.addColorStop(0, "#5F6469");
+    grd.addColorStop(0.14, "#B9BEC4");
+    grd.addColorStop(0.3, "#F2F5F8");
+    grd.addColorStop(0.46, "#9AA0A7");
+    grd.addColorStop(0.62, "#D8DDE2");
+    grd.addColorStop(0.82, "#8E949B");
+    grd.addColorStop(1, "#54595E");
     return grd;
   };
 
-  /* ---- wire loop: wide under the strap, tapering to a rounded point ---- */
-  const ringH = 62 * s;
-  const ringTopW = 83 * s;
-  const ringBotW = 22 * s;
+  const loopW = px(175);
+  const loopH = px(110);
+  const wire = px(17);
+  const collarY = top + loopH;
+  const bodyTop = collarY + px(26);
+  const bodyH = px(132);
+  const bodyW = px(84);
+  const bodyBottom = bodyTop + bodyH;
+
+  /* ---- wire loop ---- */
   ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.4)";
-  ctx.shadowBlur = 14 * s;
-  ctx.shadowOffsetY = 5 * s;
-  ctx.strokeStyle = g(cx - ringTopW / 2, cx + ringTopW / 2);
-  ctx.lineWidth = 9 * s;
-  ctx.lineJoin = "round";
+  ctx.shadowColor = "rgba(0,0,0,0.42)";
+  ctx.shadowBlur = px(18);
+  ctx.shadowOffsetY = px(6);
+  ctx.strokeStyle = chrome(cx - loopW / 2, cx + loopW / 2);
+  ctx.lineWidth = wire;
   ctx.lineCap = "round";
+  ctx.lineJoin = "round";
   ctx.beginPath();
-  ctx.moveTo(cx - ringTopW / 2, top);
-  ctx.lineTo(cx + ringTopW / 2, top);
-  ctx.quadraticCurveTo(
-    cx + ringTopW * 0.36, top + ringH * 0.7,
-    cx + ringBotW / 2, top + ringH,
-  );
-  ctx.lineTo(cx - ringBotW / 2, top + ringH);
-  ctx.quadraticCurveTo(
-    cx - ringTopW * 0.36, top + ringH * 0.7,
-    cx - ringTopW / 2, top,
-  );
-  ctx.closePath();
+  ctx.moveTo(cx - px(24), collarY);
+  ctx.quadraticCurveTo(cx - loopW * 0.5, top + loopH * 0.72, cx - loopW * 0.5, top + loopH * 0.34);
+  ctx.quadraticCurveTo(cx - loopW * 0.5, top, cx - loopW * 0.2, top);
+  ctx.lineTo(cx + loopW * 0.2, top);
+  ctx.quadraticCurveTo(cx + loopW * 0.5, top, cx + loopW * 0.5, top + loopH * 0.34);
+  ctx.quadraticCurveTo(cx + loopW * 0.5, top + loopH * 0.72, cx + px(24), collarY);
   ctx.stroke();
   ctx.restore();
 
-  /* ---- swivel rivet ---- */
-  const rivetY = top + ringH + 6 * s;
+  /* ---- mushroom collar the loop swivels on ---- */
   ctx.save();
   ctx.shadowColor = "rgba(0,0,0,0.35)";
-  ctx.shadowBlur = 10 * s;
-  ctx.shadowOffsetY = 3 * s;
-  ctx.fillStyle = g(cx - 11 * s, cx + 11 * s);
+  ctx.shadowBlur = px(10);
+  ctx.shadowOffsetY = px(4);
+  ctx.fillStyle = chrome(cx - px(23), cx + px(23));
+  // domed cap
   ctx.beginPath();
-  ctx.ellipse(cx, rivetY, 11 * s, 8 * s, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, collarY - px(4), px(15), px(11), 0, 0, Math.PI * 2);
+  ctx.fill();
+  // flared base
+  ctx.beginPath();
+  ctx.moveTo(cx - px(14), collarY - px(2));
+  ctx.lineTo(cx + px(14), collarY - px(2));
+  ctx.lineTo(cx + px(23), collarY + px(20));
+  ctx.lineTo(cx - px(23), collarY + px(20));
+  ctx.closePath();
   ctx.fill();
   ctx.restore();
 
   /* ---- flat tapered body ---- */
-  const bodyTop = rivetY + 4 * s;
-  const bodyH = 42 * s;
-  const bodyBottom = bodyTop + bodyH;
   ctx.save();
   ctx.shadowColor = "rgba(0,0,0,0.3)";
-  ctx.shadowBlur = 10 * s;
-  ctx.shadowOffsetY = 4 * s;
-  ctx.fillStyle = g(cx - 16 * s, cx + 16 * s);
+  ctx.shadowBlur = px(10);
+  ctx.shadowOffsetY = px(4);
+  ctx.fillStyle = chrome(cx - bodyW / 2, cx + bodyW / 2);
   ctx.beginPath();
-  ctx.moveTo(cx - 16 * s, bodyTop + 6 * s);
-  ctx.quadraticCurveTo(cx - 16 * s, bodyTop, cx - 10 * s, bodyTop);
-  ctx.lineTo(cx + 10 * s, bodyTop);
-  ctx.quadraticCurveTo(cx + 16 * s, bodyTop, cx + 16 * s, bodyTop + 6 * s);
-  ctx.lineTo(cx + 12 * s, bodyBottom);
-  ctx.lineTo(cx - 12 * s, bodyBottom);
+  ctx.moveTo(cx - bodyW * 0.42, bodyTop);
+  ctx.quadraticCurveTo(cx - bodyW * 0.5, bodyTop + bodyH * 0.3, cx - bodyW * 0.34, bodyTop + bodyH * 0.62);
+  ctx.quadraticCurveTo(cx - bodyW * 0.26, bodyBottom, cx, bodyBottom);
+  ctx.quadraticCurveTo(cx + bodyW * 0.26, bodyBottom, cx + bodyW * 0.34, bodyTop + bodyH * 0.62);
+  ctx.quadraticCurveTo(cx + bodyW * 0.5, bodyTop + bodyH * 0.3, cx + bodyW * 0.42, bodyTop);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
 
-  /* ---- J-hook: long shank, tight U at the foot, short rise ---- */
-  const tipX = cx + 25 * s;
-  const tipY = bodyBottom + 38 * s;
-
+  /* ---- spring trigger down the body's left face ---- */
   ctx.save();
-  ctx.strokeStyle = g(cx - 30 * s, cx + 30 * s);
-  ctx.lineWidth = 17 * s;
+  ctx.strokeStyle = "#6C7278";
+  ctx.lineWidth = px(7);
   ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.shadowColor = "rgba(0,0,0,0.32)";
-  ctx.shadowBlur = 11 * s;
-  ctx.shadowOffsetY = 4 * s;
   ctx.beginPath();
-  ctx.moveTo(cx, bodyBottom - 4 * s);
-  ctx.quadraticCurveTo(cx - 8 * s, bodyBottom + 26 * s, cx - 21 * s, bodyBottom + 50 * s);
-  ctx.quadraticCurveTo(cx - 4 * s, bodyBottom + 88 * s, cx + 24 * s, bodyBottom + 62 * s);
-  ctx.lineTo(tipX, tipY);
+  ctx.moveTo(cx - px(16), bodyTop + px(28));
+  ctx.lineTo(cx - px(9), bodyTop + px(104));
+  ctx.stroke();
+  // thumb tab poking out to the left
+  ctx.lineWidth = px(9);
+  ctx.beginPath();
+  ctx.moveTo(cx - px(15), bodyTop + px(52));
+  ctx.lineTo(cx - px(34), bodyTop + px(60));
   ctx.stroke();
   ctx.restore();
 
-  /* ---- sprung gate across the throat, with its thumb lever ---- */
+  /* ---- J-hook: long sweep left, round the foot, short rise ---- */
   ctx.save();
-  ctx.strokeStyle = COLORS.silverLo;
-  ctx.lineWidth = 6 * s;
+  ctx.strokeStyle = chrome(cx - px(60), cx + px(60));
+  ctx.lineWidth = px(25);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.shadowColor = "rgba(0,0,0,0.32)";
+  ctx.shadowBlur = px(12);
+  ctx.shadowOffsetY = px(4);
+  ctx.beginPath();
+  ctx.moveTo(cx - px(2), bodyBottom - px(10));
+  ctx.quadraticCurveTo(cx - px(30), bodyBottom + px(34), cx - px(26), bodyBottom + px(76));
+  ctx.quadraticCurveTo(cx - px(20), bodyBottom + px(116), cx + px(22), bodyBottom + px(104));
+  ctx.quadraticCurveTo(cx + px(54), bodyBottom + px(92), cx + px(50), bodyBottom + px(50));
+  ctx.stroke();
+  ctx.restore();
+
+  // a cool highlight along the hook's inner edge
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,255,255,0.5)";
+  ctx.lineWidth = px(4);
   ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.moveTo(cx - 8 * s, bodyBottom + 4 * s);
-  ctx.lineTo(tipX - 1 * s, tipY - 1 * s);
-  ctx.stroke();
-  // thumb lever poking out to the left
-  ctx.lineWidth = 5 * s;
-  ctx.beginPath();
-  ctx.moveTo(cx - 8 * s, bodyBottom + 7 * s);
-  ctx.lineTo(cx - 21 * s, bodyBottom + 15 * s);
+  ctx.moveTo(cx - px(8), bodyBottom + px(6));
+  ctx.quadraticCurveTo(cx - px(22), bodyBottom + px(42), cx - px(18), bodyBottom + px(74));
   ctx.stroke();
   ctx.restore();
 }
