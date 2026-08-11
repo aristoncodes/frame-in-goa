@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { EVENT } from "@/lib/brand";
 import { downloadBlob } from "@/lib/browser";
 
@@ -23,11 +23,12 @@ export function buildCaption(mode: "card" | "pfp", builderTitle: string) {
 
 const INTENT = "https://twitter.com/intent/tweet";
 
-function intentUrl(text: string, url: string) {
-  return `${INTENT}?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+function intentUrl(text: string, url?: string | null) {
+  const q = new URLSearchParams({ text });
+  if (url) q.set("url", url);
+  return `${INTENT}?${q}`;
 }
 
-/** A File is needed to ask whether the native share sheet can take one. */
 function canShareFiles() {
   if (typeof navigator === "undefined" || typeof navigator.canShare !== "function") {
     return false;
@@ -40,116 +41,205 @@ function canShareFiles() {
   }
 }
 
+async function copy(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Opens a panel with the post laid out ready to use rather than trying to drive
+ * the browser for the user.
+ *
+ * Auto-opening a tab is unreliable: browsers block it whenever the click's
+ * activation has been spent, and there is no way to detect that having happened.
+ * Here every action is a direct click on a real control — copy the caption, open
+ * X, save the image — so nothing depends on the browser cooperating.
+ */
 export default function ShareBar({ getBlob, fileName, name, builderTitle, mode }: Props) {
-  const [status, setStatus] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  /** Set when the browser blocked the tab, so the user still has a way through. */
-  const [manualUrl, setManualUrl] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const [caption, setCaption] = useState("");
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [blob, setBlob] = useState<Blob | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const [copied, setCopied] = useState<"caption" | "link" | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLTextAreaElement>(null);
 
-  const share = async () => {
-    setBusy(true);
-    setStatus(null);
-    setManualUrl(null);
-
-    const native = canShareFiles();
-    // The tab MUST be opened here, synchronously inside the click. Open it after
-    // awaiting the render and upload and the browser no longer counts it as a
-    // user action, so it is silently blocked as a popup.
-    // No "noopener" here: that feature makes window.open return null by spec,
-    // which would throw away the very handle we need to navigate this tab once
-    // the upload finishes. The opener is severed after navigating instead.
-    const tab = native ? null : window.open("", "_blank");
+  const start = useCallback(async () => {
+    setOpen(true);
+    setPreparing(true);
+    setCopied(null);
+    setShareUrl(null);
+    setBlob(null);
+    setCaption(buildCaption(mode, builderTitle));
 
     try {
-      const blob = await getBlob();
-      const file = new File([blob], fileName, { type: "image/png" });
-      const caption = buildCaption(mode, builderTitle);
+      const png = await getBlob();
+      setBlob(png);
 
-      // 1. Native share sheet — hands X the real image. Most phones take this.
-      if (native) {
-        try {
-          await navigator.share({ files: [file], text: caption });
-          setStatus("Shared — check #FrameInGoa is still in your post.");
-          return;
-        } catch (e) {
-          if ((e as Error).name === "AbortError") return;
-          // Anything else: fall through to the link path below.
-        }
-      }
-
-      // 2. Host the PNG so the link's preview *is* the graphic.
       const form = new FormData();
-      form.append("file", file);
+      form.append("file", new File([png], fileName, { type: "image/png" }));
       form.append("name", name);
       form.append("title", builderTitle);
       form.append("mode", mode);
-
-      let shareUrl = window.location.origin;
-      try {
-        const res = await fetch("/api/share", { method: "POST", body: form });
-        const payload = res.ok
-          ? ((await res.json()) as { url?: string })
-          : null;
-        if (payload?.url) shareUrl = payload.url;
-      } catch {
-        // Offline or storage down — still worth opening the composer.
-      }
-
-      const url = intentUrl(caption, shareUrl);
-
-      // Also save the PNG, so the post can be an image post if they'd rather
-      // attach it than rely on the link preview.
-      downloadBlob(blob, fileName);
-
-      if (tab && !tab.closed) {
-        tab.location.href = url;
-        try {
-          tab.opener = null;
-        } catch {
-          // Cross-origin once navigated; nothing to do.
-        }
-        setStatus("X is open with your caption ready. The PNG is in your downloads if you'd rather attach it.");
-      } else {
-        // Popup blocked: give them a real link to click instead of failing.
-        setManualUrl(url);
-        setStatus("Your browser blocked the new tab — tap below to open X.");
-      }
+      const res = await fetch("/api/share", { method: "POST", body: form });
+      const payload = res.ok ? ((await res.json()) as { url?: string }) : null;
+      if (payload?.url) setShareUrl(payload.url);
     } catch {
-      tab?.close();
-      setStatus("Something went wrong. Use Download, then post it manually with #FrameInGoa.");
+      // The panel is still useful without a hosted link.
     } finally {
-      setBusy(false);
+      setPreparing(false);
     }
-  };
+  }, [getBlob, fileName, name, builderTitle, mode]);
+
+  useEffect(() => {
+    if (!open) return;
+    textRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  const href = intentUrl(caption, shareUrl);
+  const missingTag = !caption.includes(EVENT.hashtag);
 
   return (
     <div className="mt-3">
       <button
         type="button"
-        onClick={share}
-        disabled={busy}
-        className="flex w-full items-center justify-center gap-2 rounded-full bg-[var(--cream)] px-5 py-3 text-sm font-bold tracking-wide text-[var(--ink)] transition hover:brightness-95 disabled:opacity-60"
+        onClick={start}
+        className="flex w-full items-center justify-center gap-2 rounded-full bg-[var(--cream)] px-5 py-3 text-sm font-bold tracking-wide text-[var(--ink)] transition hover:brightness-95"
       >
         <XLogo />
-        {busy ? "Preparing your post…" : `Share to X with ${EVENT.hashtag}`}
+        {`Share to X with ${EVENT.hashtag}`}
       </button>
 
-      {manualUrl && (
-        <a
-          href={manualUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-[var(--pink)] px-5 py-3 text-sm font-bold tracking-wide text-white transition hover:brightness-110"
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center"
+          onClick={(e) => e.target === e.currentTarget && setOpen(false)}
         >
-          <XLogo />
-          Open X with your post
-        </a>
-      )}
+          <div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Your post"
+            className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[var(--cream)]/15 bg-[var(--green-deep)] p-5 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="font-display text-2xl text-[var(--gold)]">Your post</h2>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close"
+                className="rounded-full border border-[var(--cream)]/25 px-3 py-1 text-xs font-bold text-[var(--cream)]/70 transition hover:border-[var(--gold)] hover:text-[var(--gold)]"
+              >
+                Close
+              </button>
+            </div>
 
-      {status && (
-        <p role="status" className="mt-2 text-center text-xs text-[var(--cream)]/60">
-          {status}
-        </p>
+            <p className="mt-1 text-xs text-[var(--cream)]/55">
+              Copy this, then post it on X with your image attached.
+            </p>
+
+            <label className="mt-4 block text-[11px] font-bold tracking-[0.18em] text-[var(--cream)]/60">
+              CAPTION
+              <textarea
+                ref={textRef}
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                rows={7}
+                spellCheck={false}
+                className="mt-1 w-full resize-y rounded-xl border border-[var(--cream)]/15 bg-black/30 p-3 text-[15px] font-normal leading-relaxed tracking-normal text-[var(--cream)] outline-none focus:border-[var(--gold)]"
+              />
+            </label>
+
+            {missingTag && (
+              <p role="alert" className="mt-1 text-[11px] font-bold text-[var(--pink)]">
+                {EVENT.hashtag} is missing — the submission is invalid without it.
+              </p>
+            )}
+
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={async () => setCopied((await copy(caption)) ? "caption" : null)}
+                className="rounded-full bg-[var(--gold)] px-4 py-3 text-sm font-bold text-[var(--ink)] transition hover:brightness-110"
+              >
+                {copied === "caption" ? "Caption copied ✓" : "Copy caption"}
+              </button>
+              <button
+                type="button"
+                disabled={!blob}
+                onClick={() => blob && downloadBlob(blob, fileName)}
+                className="rounded-full border border-[var(--cream)]/25 px-4 py-3 text-sm font-semibold text-[var(--cream)] transition hover:border-[var(--gold)] hover:text-[var(--gold)] disabled:opacity-50"
+              >
+                {blob ? "Save image" : "Preparing image…"}
+              </button>
+            </div>
+
+            {canShareFiles() && blob && (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.share({
+                      files: [new File([blob], fileName, { type: "image/png" })],
+                      text: caption,
+                    });
+                  } catch {
+                    /* dismissed */
+                  }
+                }}
+                className="mt-2 w-full rounded-full bg-[var(--pink)] px-4 py-3 text-sm font-bold text-white transition hover:brightness-110"
+              >
+                Share image via your phone
+              </button>
+            )}
+
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-[var(--cream)] px-4 py-3 text-sm font-bold text-[var(--ink)] transition hover:brightness-95"
+            >
+              <XLogo />
+              Open X with this caption
+            </a>
+
+            <div className="mt-4 border-t border-[var(--cream)]/12 pt-3">
+              <p className="text-[11px] font-bold tracking-[0.18em] text-[var(--cream)]/60">
+                SHAREABLE LINK
+              </p>
+              {preparing && !shareUrl ? (
+                <p className="mt-1 text-xs text-[var(--cream)]/45">Uploading your graphic…</p>
+              ) : shareUrl ? (
+                <>
+                  <p className="mt-1 break-all text-xs text-[var(--cream)]/70">{shareUrl}</p>
+                  <button
+                    type="button"
+                    onClick={async () => setCopied((await copy(shareUrl)) ? "link" : null)}
+                    className="mt-2 rounded-full border border-[var(--cream)]/25 px-3 py-1.5 text-[11px] font-bold text-[var(--cream)]/80 transition hover:border-[var(--gold)] hover:text-[var(--gold)]"
+                  >
+                    {copied === "link" ? "Link copied ✓" : "Copy link"}
+                  </button>
+                  <p className="mt-2 text-[11px] leading-relaxed text-[var(--cream)]/45">
+                    Posting this link shows your graphic as the preview — handy if you
+                    would rather not attach the image.
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1 text-xs text-[var(--cream)]/45">
+                  Not available — attach the saved image to your post instead.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -207,72 +207,56 @@ async function run() {
   await page.waitForTimeout(400);
 
   /* ------------------------------------------------------ share to X */
-  // Headless Chromium has no file-capable Web Share API, so this exercises the
-  // link/download fallback — the path desktop users get.
-  const popup = ctx.waitForEvent("page", { timeout: 20000 });
-  const shareDl = page.waitForEvent("download", { timeout: 20000 }).catch(() => null);
+  // The panel does the work in-page: nothing depends on the browser agreeing to
+  // open a tab, so there is no popup path left to break.
   await page.getByRole("button", { name: /Share to X/i }).click();
-  const tab = await popup;
-  // The tab is opened blank inside the click and navigated once the upload
-  // finishes, so wait for the real destination rather than reading about:blank.
-  await tab.waitForURL(/(twitter|x)\.com\/.*intent/, { timeout: 20000 });
-  const intentUrl = tab.url();
-  // A signed-out browser gets bounced to X's login, which carries the original
-  // intent in redirect_after_login. Unwrap that so the caption is checked either
-  // way rather than only when a session happens to exist.
-  const resolveIntent = (raw: string) => {
-    const u = new URL(raw);
-    if (u.pathname.includes("/intent/tweet")) return u.searchParams;
-    const nested = u.searchParams.get("redirect_after_login");
-    if (nested) return new URL(nested, "https://x.com").searchParams;
-    return u.searchParams;
-  };
-  const params = resolveIntent(intentUrl);
-  const text = params.get("text") ?? "";
+  const dialog = page.getByRole("dialog", { name: "Your post" });
+  await dialog.waitFor({ state: "visible", timeout: 15000 });
+  ok("share opens a panel with the post ready");
 
-  // twitter.com/intent redirects to x.com, and a signed-out session lands on
-  // the login page that wraps it — both are the intent being reached.
-  /^https:\/\/(twitter|x)\.com\//.test(intentUrl) && params.get("text")
-    ? ok(
-        `share reaches an X intent (${new URL(intentUrl).host}${
-          intentUrl.includes("redirect_after_login") ? ", via login" : ""
-        })`,
-      )
-    : fail(`unexpected share target: ${intentUrl}`);
-  text.includes("#FrameInGoa")
-    ? ok("pre-filled caption contains #FrameInGoa (exact casing)")
-    : fail(`caption is missing #FrameInGoa: ${text}`);
-  params.get("url")
-    ? ok(`intent carries a link: ${params.get("url")}`)
-    : fail("intent has no url param");
-  // Two valid outcomes. With blob storage configured the intent carries a /s/
-  // share link whose OG image is the card; without it, the PNG is downloaded so
-  // the user can attach it by hand. Exactly one should happen.
-  const sharedByLink = /\/s\/[a-z0-9]+$/.test(params.get("url") ?? "");
-  const downloaded = Boolean(await shareDl);
-  sharedByLink
-    ? ok("shared via a link whose preview is the graphic")
-    : downloaded
-      ? ok("no blob storage: fell back to downloading the PNG to attach")
-      : fail("share neither produced a share link nor delivered the image");
+  const caption = await dialog.getByRole("textbox").inputValue();
+  caption.includes("#FrameInGoa")
+    ? ok("caption in the panel contains #FrameInGoa (exact casing)")
+    : fail(`caption is missing #FrameInGoa: ${caption}`);
 
-  /* ------------------------------------- share with popups blocked */
-  // Headless Chromium never blocks popups, so the blocked path has to be forced.
-  // Without this the regression that broke Share to X on desktop is invisible.
-  await page.evaluate(() => {
-    (window as unknown as { open: () => Window | null }).open = () => null;
-  });
-  await page.getByRole("button", { name: /Share to X/i }).click();
-  const rescue = page.getByRole("link", { name: /Open X with your post/i });
-  try {
-    await rescue.waitFor({ state: "visible", timeout: 20000 });
-    const href = (await rescue.getAttribute("href")) ?? "";
-    /(twitter|x)\.com\/intent/.test(href) && href.includes("FrameInGoa")
-      ? ok("popup blocked: offers a working link to X instead of failing")
-      : fail(`rescue link is wrong: ${href}`);
-  } catch {
-    fail("popup blocked and no rescue link was offered");
-  }
+  const openX = dialog.getByRole("link", { name: /Open X with this caption/i });
+  const href = (await openX.getAttribute("href")) ?? "";
+  const q = new URL(href).searchParams;
+  /^https:\/\/(twitter|x)\.com\/intent\/tweet/.test(href) &&
+  (q.get("text") ?? "").includes("#FrameInGoa")
+    ? ok("panel's X link carries the caption and hashtag")
+    : fail(`X link is wrong: ${href}`);
+
+  // Copy must put the caption on the clipboard, since that is the whole point.
+  await ctx.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await dialog.getByRole("button", { name: /Copy caption/i }).click();
+  const clip = await page.evaluate(() => navigator.clipboard.readText());
+  clip.includes("#FrameInGoa")
+    ? ok("Copy caption puts the post on the clipboard")
+    : fail(`clipboard did not receive the caption: ${clip.slice(0, 60)}`);
+
+  const saveBtn = dialog.getByRole("button", { name: /Save image/i });
+  await saveBtn.waitFor({ state: "visible", timeout: 25000 });
+  const panelDl = page.waitForEvent("download", { timeout: 20000 });
+  await saveBtn.click();
+  (await panelDl).suggestedFilename().endsWith(".png")
+    ? ok("Save image delivers the PNG")
+    : fail("Save image did not deliver a PNG");
+
+  // The upload runs in the background, so wait for that section to settle rather
+  // than reading it mid-flight and mistaking it for "no storage configured".
+  await dialog
+    .getByText("Uploading your graphic…")
+    .waitFor({ state: "hidden", timeout: 30000 })
+    .catch(() => {});
+  const link = dialog.getByText(/\/s\/[a-z0-9]{6,}/).first();
+  (await link.count())
+    ? ok(`panel offers a shareable link: ${(await link.textContent())?.trim()}`)
+    : ok("no blob storage: panel tells the user to attach the image instead");
+
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await dialog.waitFor({ state: "hidden", timeout: 5000 });
+  ok("panel closes");
 
   /* ------------------------------------------------- horizontal overflow */
   const overflow = await page.evaluate(

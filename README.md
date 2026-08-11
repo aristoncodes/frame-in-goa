@@ -206,27 +206,25 @@ that salts the seed.
 
 ## Share to X
 
-1. **Web Share API** with the PNG attached — what most phones get.
-2. Otherwise X opens with the caption pre-filled and a link to `/s/<id>`, whose
-   `og:image` / `twitter:image` **is the generated graphic**
-   (`summary_large_image`), so the preview is never a blank thumbnail. The PNG is
-   also saved, in case an image post is preferred over the link preview.
-3. If blob storage isn't configured the same thing happens, minus the hosted
-   link.
+Clicking **Share to X** opens a panel with the post laid out ready to use:
 
-Every path builds its caption through `buildCaption()`, so **#FrameInGoa** can't
-be dropped.
+- the **caption**, editable, with a warning if `#FrameInGoa` is ever removed
+- **Copy caption** to the clipboard
+- **Save image** — the PNG, to attach to the post
+- **Open X with this caption** — a plain link the user clicks themselves
+- the **shareable link** to `/s/<id>`, whose `og:image` / `twitter:image` **is the
+  generated graphic** (`summary_large_image`), so posting the link alone shows
+  the card rather than a blank thumbnail
+- on phones, **Share image via your phone** (Web Share API) to hand X the file
 
-**The tab is opened synchronously inside the click**, then navigated once the
-upload finishes. Opening it afterwards costs the user-activation and browsers
-silently block it as a popup — which is exactly how this broke on desktop. Note
-that `window.open` returns `null` when passed `noopener`, so that feature can't
-be used here; the opener is severed after navigating instead. If the tab is
-blocked anyway, a real link to X is rendered rather than failing.
+It deliberately does **not** try to drive the browser. Auto-opening a tab is
+unreliable — browsers block it whenever the click's activation has been spent,
+and there is no way to detect that it happened, so the button just appears dead.
+Every action here is a direct click on a real control, so nothing depends on the
+browser cooperating.
 
-Headless Chromium never blocks popups, so `scripts/e2e.ts` forces the blocked
-path by stubbing `window.open`. It also unwraps X's `redirect_after_login`, since
-a signed-out browser lands on the login page carrying the intent.
+`buildCaption()` is the single source of the caption, so **#FrameInGoa** can't be
+dropped by a caller, and the panel flags it if the user deletes it by hand.
 
 ## Live
 
