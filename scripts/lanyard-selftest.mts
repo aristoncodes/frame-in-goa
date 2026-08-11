@@ -30,7 +30,10 @@ const ctx = c.getContext("2d");
 ctx.drawImage(img, 0, 0);
 const d = ctx.getImageData(0, 0, img.width, img.height).data;
 let clear = 0, solid = 0;
-for (let i = 3; i < d.length; i += 4) (d[i] < 8 ? clear++ : d[i] > 200 ? solid++ : 0);
+for (let i = 3; i < d.length; i += 4) {
+  if (d[i] < 8) clear++;
+  else if (d[i] > 200) solid++;
+}
 const total = img.width * img.height;
 console.log(`transparent ${(clear / total * 100).toFixed(1)}%  opaque ${(solid / total * 100).toFixed(1)}%`);
 

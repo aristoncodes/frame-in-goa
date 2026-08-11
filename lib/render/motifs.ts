@@ -378,32 +378,51 @@ function metal(ctx: Ctx, cx: number, top: number, cardTop: number, s: number) {
   ctx.stroke();
   ctx.restore();
 
-  /* ---- J-hook: long sweep left, round the foot, short rise ---- */
+  /* ---- J-hook: sweeps left, rounds the foot, rises to an open tip ---- */
+  // The path is defined once and stroked three times — a dark base for edge
+  // definition, the chrome body, then a specular core. Stroking a single fat
+  // flat-gradient line is what made this read as a grey blob.
+  const hook = () => {
+    ctx.beginPath();
+    ctx.moveTo(cx - px(2), bodyBottom - px(10));
+    ctx.quadraticCurveTo(cx - px(26), bodyBottom + px(30), cx - px(23), bodyBottom + px(66));
+    ctx.quadraticCurveTo(cx - px(18), bodyBottom + px(100), cx + px(19), bodyBottom + px(90));
+    ctx.quadraticCurveTo(cx + px(47), bodyBottom + px(80), cx + px(44), bodyBottom + px(44));
+  };
+
   ctx.save();
-  ctx.strokeStyle = chrome(cx - px(60), cx + px(60));
-  ctx.lineWidth = px(25);
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.shadowColor = "rgba(0,0,0,0.32)";
-  ctx.shadowBlur = px(12);
-  ctx.shadowOffsetY = px(4);
-  ctx.beginPath();
-  ctx.moveTo(cx - px(2), bodyBottom - px(10));
-  ctx.quadraticCurveTo(cx - px(30), bodyBottom + px(34), cx - px(26), bodyBottom + px(76));
-  ctx.quadraticCurveTo(cx - px(20), bodyBottom + px(116), cx + px(22), bodyBottom + px(104));
-  ctx.quadraticCurveTo(cx + px(54), bodyBottom + px(92), cx + px(50), bodyBottom + px(50));
+
+  // soft contact shadow, kept light: on kraft a heavy one reads as a smudge
+  ctx.save();
+  ctx.strokeStyle = "rgba(40,30,15,0.16)";
+  ctx.lineWidth = px(19);
+  ctx.shadowColor = "rgba(40,30,15,0.2)";
+  ctx.shadowBlur = px(7);
+  ctx.shadowOffsetY = px(3);
+  hook();
   ctx.stroke();
   ctx.restore();
 
-  // a cool highlight along the hook's inner edge
-  ctx.save();
-  ctx.strokeStyle = "rgba(255,255,255,0.5)";
-  ctx.lineWidth = px(4);
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(cx - px(8), bodyBottom + px(6));
-  ctx.quadraticCurveTo(cx - px(22), bodyBottom + px(42), cx - px(18), bodyBottom + px(74));
+  ctx.strokeStyle = "#4A4F55";
+  ctx.lineWidth = px(19);
+  hook();
   ctx.stroke();
+
+  ctx.strokeStyle = chrome(cx - px(26), cx + px(47));
+  ctx.lineWidth = px(15.5);
+  hook();
+  ctx.stroke();
+
+  // specular core, offset toward the light
+  ctx.strokeStyle = "rgba(255,255,255,0.72)";
+  ctx.lineWidth = px(4.5);
+  ctx.save();
+  ctx.translate(-px(2.5), -px(1.5));
+  hook();
+  ctx.stroke();
+  ctx.restore();
   ctx.restore();
 }
 
