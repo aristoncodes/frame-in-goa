@@ -10,9 +10,11 @@
     "preview": "tsx scripts/preview.ts",
     "e2e": "tsx scripts/e2e.ts",
     "check:size": "tsx scripts/check-card-size.mts",
-    "check:pfp": "tsx scripts/pfp-check.mts"
+    "check:pfp": "tsx scripts/pfp-check.mts",
+    "check:cutout": "tsx scripts/cutout-check.mts"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^1.0.1",
     "@vercel/blob": "^2.7.0",
     "heic2any": "^0.0.4",
     "jsbarcode": "^3.12.3",

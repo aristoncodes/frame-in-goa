@@ -102,6 +102,33 @@ npm run preview && npx tsx scripts/check-card-size.mts
 the largest size that fits both. A single unbroken word that won't fit is shrunk
 to a 19px floor and then ellipsised. The card can't overflow, and it can't grow.
 
+#### Background replacement (opt-in)
+
+**Put me on kraft paper** cuts the person out of the upload and drops them onto
+the card's paper, so every badge shares one backdrop instead of showing whatever
+wall the photo was taken against.
+
+It runs entirely on the device via MediaPipe's selfie segmenter — no upload, no
+API key, no cost. It is **off by default and lazily loaded**, because the WASM
+runtime is several megabytes and the core flow has to stay instant without it.
+The original is kept alongside the cut-out, so the toggle is instant and always
+reversible.
+
+- The 249KB model is served from `public/models`.
+- The WASM runtime loads from MediaPipe's CDN. Self-hosting it would mean
+  committing ~12MB for a feature not everyone turns on; if the CDN is
+  unreachable the cut-out fails and the photo is kept as-is.
+- If the model finds no person (mask under 4% of the frame), it says so and
+  keeps the original rather than erasing the photo.
+
+```bash
+npm run check:cutout -- ./fixtures/your-photo.jpg
+```
+
+drives the real toggle in a browser and reports how much of the photo window
+turned kraft. **Segmentation quality has only been verified against synthetic
+fixtures** — run it against a real portrait before trusting the result.
+
 #### The photo mount
 
 The portrait sits on a **kraft mount** — a 12px margin of card paper inside the

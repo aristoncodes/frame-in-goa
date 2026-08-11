@@ -25,6 +25,7 @@ import {
 } from "@/lib/render/idcard";
 import { PFP_SIZE, renderPfp } from "@/lib/render/pfp";
 import type { Ctx } from "@/lib/render/primitives";
+import { BackgroundRemovalError, replaceBackground } from "@/lib/segment";
 import PhotoAdjust from "./PhotoAdjust";
 import ShareBar from "./ShareBar";
 
@@ -61,6 +62,13 @@ export default function Generator() {
 
   const [logo, setLogo] = useState<HTMLImageElement | null>(null);
 
+  // Background replacement: the cut-out is kept alongside the original so the
+  // toggle is instant and always reversible.
+  const [cutout, setCutout] = useState<HTMLCanvasElement | null>(null);
+  const [useCutout, setUseCutout] = useState(false);
+  const [cutoutBusy, setCutoutBusy] = useState(false);
+  const [cutoutError, setCutoutError] = useState<string | null>(null);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,6 +92,36 @@ export default function Generator() {
     img.src = logoUrl;
   }, []);
 
+  /** What the renderers actually composite: the cut-out when it's on and ready. */
+  const source = useCutout && cutout ? cutout : (photo?.source ?? null);
+
+  const toggleCutout = useCallback(async () => {
+    if (useCutout) {
+      setUseCutout(false);
+      return;
+    }
+    if (cutout) {
+      setUseCutout(true);
+      return;
+    }
+    if (!photo) return;
+    setCutoutBusy(true);
+    setCutoutError(null);
+    try {
+      const result = await replaceBackground(photo.source);
+      setCutout(result);
+      setUseCutout(true);
+    } catch (e) {
+      setCutoutError(
+        e instanceof BackgroundRemovalError && e.message.startsWith("Couldn't")
+          ? e.message
+          : "Couldn't remove the background. Keeping your photo as it is.",
+      );
+    } finally {
+      setCutoutBusy(false);
+    }
+  }, [useCutout, cutout, photo]);
+
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -96,17 +134,12 @@ export default function Generator() {
     if (!ctx) return;
 
     if (mode === "card") {
-      const data: CardData = {
-        ...identity,
-        builderTitle,
-        photo: photo?.source ?? null,
-        transform,
-      };
+      const data: CardData = { ...identity, builderTitle, photo: source, transform };
       renderIdCard(ctx, browserEnv, data, face, logo);
     } else {
-      renderPfp(ctx, { photo: photo?.source ?? null, transform });
+      renderPfp(ctx, { photo: source, transform });
     }
-  }, [mode, face, identity, builderTitle, photo, transform, logo]);
+  }, [mode, face, identity, builderTitle, source, transform, logo]);
 
   // One composite per animation frame, cancelled on the next change, so holding
   // a key or dragging never queues up a backlog of full-res renders.
@@ -125,6 +158,9 @@ export default function Generator() {
       const loaded = await loadPhoto(file);
       setPhoto(loaded);
       setTransforms({ card: DEFAULT_TRANSFORM, pfp: DEFAULT_PFP_TRANSFORM });
+      setCutout(null);
+      setUseCutout(false);
+      setCutoutError(null);
     } catch (e) {
       setError(
         e instanceof UnsupportedImageError
@@ -154,16 +190,16 @@ export default function Generator() {
         renderIdCard(
           ctx,
           browserEnv,
-          { ...identity, builderTitle, photo: photo?.source ?? null, transform },
+          { ...identity, builderTitle, photo: source, transform },
           which === "pfp" ? "front" : which,
           logo,
         );
       } else {
-        renderPfp(ctx, { photo: photo?.source ?? null, transform });
+        renderPfp(ctx, { photo: source, transform });
       }
       return canvasToBlob(off);
     },
-    [mode, face, identity, builderTitle, photo, transform, logo],
+    [mode, face, identity, builderTitle, source, transform, logo],
   );
 
   const fileName = (which: string) =>
@@ -304,8 +340,45 @@ export default function Generator() {
               <h2 className="mb-3 text-xs font-bold tracking-[0.2em] text-[var(--gold)]">
                 POSITION YOUR PHOTO
               </h2>
+
+              <button
+                type="button"
+                onClick={toggleCutout}
+                disabled={cutoutBusy}
+                aria-pressed={useCutout}
+                className={`mb-3 flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left text-xs font-bold tracking-wide transition disabled:opacity-60 ${
+                  useCutout
+                    ? "border-[var(--gold)] bg-[var(--gold)]/15 text-[var(--gold)]"
+                    : "border-[var(--cream)]/20 text-[var(--cream)]/75 hover:border-[var(--cream)]/40"
+                }`}
+              >
+                <span>
+                  {cutoutBusy ? "REMOVING BACKGROUND…" : "PUT ME ON KRAFT PAPER"}
+                  <span className="mt-0.5 block text-[10px] font-medium tracking-normal text-[var(--cream)]/50">
+                    {cutoutBusy
+                      ? "First run downloads the model"
+                      : "Swaps your background for the card's paper"}
+                  </span>
+                </span>
+                <span
+                  className={`h-5 w-9 shrink-0 rounded-full p-0.5 transition ${
+                    useCutout ? "bg-[var(--gold)]" : "bg-[var(--cream)]/25"
+                  }`}
+                >
+                  <span
+                    className={`block h-4 w-4 rounded-full bg-[var(--ink)] transition ${
+                      useCutout ? "translate-x-4" : ""
+                    }`}
+                  />
+                </span>
+              </button>
+              {cutoutError && (
+                <p role="alert" className="mb-3 text-[11px] font-semibold text-[var(--pink)]">
+                  {cutoutError}
+                </p>
+              )}
               <PhotoAdjust
-                photo={photo}
+                photo={{ ...photo, source: source ?? photo.source }}
                 aspect={aspect}
                 round={mode === "pfp"}
                 backdrop={mode === "card" ? KRAFT : undefined}
