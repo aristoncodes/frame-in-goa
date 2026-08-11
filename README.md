@@ -210,12 +210,18 @@ Clicking **Share to X** opens a panel with the post laid out ready to use:
 
 - the **caption**, editable, with a warning if `#FrameInGoa` is ever removed
 - **Copy caption** to the clipboard
-- **Save image** — the PNG, to attach to the post
+- **Save all 3 images** — card front, card back and PFP, rendered together
+  whichever tab is open. X takes up to four images per post, so the whole set
+  fits in one. Downloads are staggered, since browsers throttle back-to-back ones.
 - **Open X with this caption** — a plain link the user clicks themselves
 - the **shareable link** to `/s/<id>`, whose `og:image` / `twitter:image` **is the
   generated graphic** (`summary_large_image`), so posting the link alone shows
   the card rather than a blank thumbnail
-- on phones, **Share image via your phone** (Web Share API) to hand X the file
+- on phones, **Share all 3 to X** (Web Share API) hands X every file at once
+
+X's web intent **cannot attach images** — the parameters are text and url only.
+So the images are handed over for the user to attach, or passed directly through
+the native share sheet on a phone, which does carry files.
 
 It deliberately does **not** try to drive the browser. Auto-opening a tab is
 unreliable — browsers block it whenever the click's activation has been spent,

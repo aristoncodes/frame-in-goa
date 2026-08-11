@@ -27,7 +27,7 @@ import { PFP_SIZE, renderPfp } from "@/lib/render/pfp";
 import type { Ctx } from "@/lib/render/primitives";
 import { BackgroundRemovalError, replaceBackground } from "@/lib/segment";
 import PhotoAdjust from "./PhotoAdjust";
-import ShareBar from "./ShareBar";
+import ShareBar, { type ShareImage } from "./ShareBar";
 
 type Mode = "card" | "pfp";
 
@@ -202,6 +202,45 @@ export default function Generator() {
     [mode, face, identity, builderTitle, source, transform, logo],
   );
 
+  /**
+   * Renders every graphic — card front, card back and PFP — regardless of which
+   * tab is open, each with that mode's own framing. X takes up to four images
+   * per post, so the whole set can go up together.
+   */
+  const exportAll = useCallback(async (): Promise<ShareImage[]> => {
+    await ensureFonts();
+    const slug = slugify(identity.name);
+    const make = (w: number, h: number, paint: (ctx: Ctx) => void) => {
+      const off = document.createElement("canvas");
+      off.width = w;
+      off.height = h;
+      paint(off.getContext("2d") as Ctx);
+      return canvasToBlob(off);
+    };
+    const data = {
+      ...identity,
+      builderTitle,
+      photo: source,
+      transform: transforms.card,
+    };
+    const [front, back, pfp] = await Promise.all([
+      make(ID_CARD_SIZE.w, ID_CARD_SIZE.h, (ctx) =>
+        renderIdCard(ctx, browserEnv, data, "front", logo),
+      ),
+      make(ID_CARD_SIZE.w, ID_CARD_SIZE.h, (ctx) =>
+        renderIdCard(ctx, browserEnv, data, "back", logo),
+      ),
+      make(PFP_SIZE.w, PFP_SIZE.h, (ctx) =>
+        renderPfp(ctx, { photo: source, transform: transforms.pfp }),
+      ),
+    ]);
+    return [
+      { key: "front", label: "ID card — front", fileName: `hhgoa2026-builder-id-front-${slug}.png`, blob: front },
+      { key: "back", label: "ID card — back", fileName: `hhgoa2026-builder-id-back-${slug}.png`, blob: back },
+      { key: "pfp", label: "PFP frame", fileName: `hhgoa2026-pfp-${slug}.png`, blob: pfp },
+    ];
+  }, [identity, builderTitle, source, transforms, logo]);
+
   const fileName = (which: string) =>
     `hhgoa2026-${mode === "card" ? `builder-id-${which}` : "pfp"}-${slugify(
       identity.name,
@@ -294,8 +333,7 @@ export default function Generator() {
             </div>
 
             <ShareBar
-              getBlob={() => exportBlob(mode === "card" ? "front" : "pfp")}
-              fileName={fileName(mode === "card" ? "front" : "pfp")}
+              getImages={exportAll}
               name={identity.name}
               builderTitle={builderTitle}
               mode={mode}

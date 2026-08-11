@@ -235,13 +235,18 @@ async function run() {
     ? ok("Copy caption puts the post on the clipboard")
     : fail(`clipboard did not receive the caption: ${clip.slice(0, 60)}`);
 
-  const saveBtn = dialog.getByRole("button", { name: /Save image/i });
-  await saveBtn.waitFor({ state: "visible", timeout: 25000 });
-  const panelDl = page.waitForEvent("download", { timeout: 20000 });
+  // All three graphics — card front, card back and PFP — should be offered, so
+  // one post can carry the whole set.
+  const saveBtn = dialog.getByRole("button", { name: /Save all \d+ images/i });
+  await saveBtn.waitFor({ state: "visible", timeout: 40000 });
+  const got: string[] = [];
+  page.on("download", (d) => got.push(d.suggestedFilename()));
   await saveBtn.click();
-  (await panelDl).suggestedFilename().endsWith(".png")
-    ? ok("Save image delivers the PNG")
-    : fail("Save image did not deliver a PNG");
+  await page.waitForTimeout(2500);
+  const kinds = ["front", "back", "pfp"].filter((k) => got.some((f) => f.includes(k)));
+  kinds.length === 3
+    ? ok(`saves all three graphics (${got.length} PNGs: front, back, pfp)`)
+    : fail(`expected front+back+pfp, got ${got.join(", ") || "nothing"}`);
 
   // The upload runs in the background, so wait for that section to settle rather
   // than reading it mid-flight and mistaking it for "no storage configured".

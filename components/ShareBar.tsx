@@ -4,9 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { EVENT } from "@/lib/brand";
 import { downloadBlob } from "@/lib/browser";
 
-type Props = {
-  getBlob: () => Promise<Blob>;
+export type ShareImage = {
+  key: "front" | "back" | "pfp";
+  label: string;
   fileName: string;
+  blob: Blob;
+};
+
+type Props = {
+  getImages: () => Promise<ShareImage[]>;
   name: string;
   builderTitle: string;
   mode: "card" | "pfp";
@@ -29,15 +35,26 @@ function intentUrl(text: string, url?: string | null) {
   return `${INTENT}?${q}`;
 }
 
-function canShareFiles() {
+function canShareFiles(count = 1) {
   if (typeof navigator === "undefined" || typeof navigator.canShare !== "function") {
     return false;
   }
   try {
-    const probe = new File([new Uint8Array(1)], "probe.png", { type: "image/png" });
-    return navigator.canShare({ files: [probe] });
+    const probe = Array.from(
+      { length: count },
+      (_, i) => new File([new Uint8Array(1)], `p${i}.png`, { type: "image/png" }),
+    );
+    return navigator.canShare({ files: probe });
   } catch {
     return false;
+  }
+}
+
+/** Browsers throttle back-to-back downloads; a small gap keeps all of them. */
+async function saveAll(images: ShareImage[]) {
+  for (const [i, img] of images.entries()) {
+    downloadBlob(img.blob, img.fileName);
+    if (i < images.length - 1) await new Promise((r) => setTimeout(r, 400));
   }
 }
 
@@ -59,11 +76,11 @@ async function copy(text: string) {
  * Here every action is a direct click on a real control — copy the caption, open
  * X, save the image — so nothing depends on the browser cooperating.
  */
-export default function ShareBar({ getBlob, fileName, name, builderTitle, mode }: Props) {
+export default function ShareBar({ getImages, name, builderTitle, mode }: Props) {
   const [open, setOpen] = useState(false);
   const [caption, setCaption] = useState("");
   const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const [blob, setBlob] = useState<Blob | null>(null);
+  const [images, setImages] = useState<ShareImage[]>([]);
   const [preparing, setPreparing] = useState(false);
   const [copied, setCopied] = useState<"caption" | "link" | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -74,15 +91,17 @@ export default function ShareBar({ getBlob, fileName, name, builderTitle, mode }
     setPreparing(true);
     setCopied(null);
     setShareUrl(null);
-    setBlob(null);
+    setImages([]);
     setCaption(buildCaption(mode, builderTitle));
 
     try {
-      const png = await getBlob();
-      setBlob(png);
+      const set = await getImages();
+      setImages(set);
 
+      // The link preview can only be one image: use whichever face this tab is on.
+      const hero = set.find((i) => (mode === "pfp" ? i.key === "pfp" : i.key === "front"))!;
       const form = new FormData();
-      form.append("file", new File([png], fileName, { type: "image/png" }));
+      form.append("file", new File([hero.blob], hero.fileName, { type: "image/png" }));
       form.append("name", name);
       form.append("title", builderTitle);
       form.append("mode", mode);
@@ -94,7 +113,7 @@ export default function ShareBar({ getBlob, fileName, name, builderTitle, mode }
     } finally {
       setPreparing(false);
     }
-  }, [getBlob, fileName, name, builderTitle, mode]);
+  }, [getImages, name, builderTitle, mode]);
 
   useEffect(() => {
     if (!open) return;
@@ -143,7 +162,8 @@ export default function ShareBar({ getBlob, fileName, name, builderTitle, mode }
             </div>
 
             <p className="mt-1 text-xs text-[var(--cream)]/55">
-              Copy this, then post it on X with your image attached.
+              Copy the caption, then attach the images to your post. X takes up to
+              four, so the card front, its back and your PFP all fit in one.
             </p>
 
             <label className="mt-4 block text-[11px] font-bold tracking-[0.18em] text-[var(--cream)]/60">
@@ -164,6 +184,19 @@ export default function ShareBar({ getBlob, fileName, name, builderTitle, mode }
               </p>
             )}
 
+            {images.length > 0 && (
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {images.map((i) => (
+                  <li
+                    key={i.key}
+                    className="rounded-full border border-[var(--cream)]/15 px-3 py-1 text-[11px] font-semibold text-[var(--cream)]/70"
+                  >
+                    {i.label}
+                  </li>
+                ))}
+              </ul>
+            )}
+
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <button
                 type="button"
@@ -174,21 +207,23 @@ export default function ShareBar({ getBlob, fileName, name, builderTitle, mode }
               </button>
               <button
                 type="button"
-                disabled={!blob}
-                onClick={() => blob && downloadBlob(blob, fileName)}
+                disabled={!images.length}
+                onClick={() => saveAll(images)}
                 className="rounded-full border border-[var(--cream)]/25 px-4 py-3 text-sm font-semibold text-[var(--cream)] transition hover:border-[var(--gold)] hover:text-[var(--gold)] disabled:opacity-50"
               >
-                {blob ? "Save image" : "Preparing image…"}
+                {images.length ? `Save all ${images.length} images` : "Preparing images…"}
               </button>
             </div>
 
-            {canShareFiles() && blob && (
+            {images.length > 0 && canShareFiles(images.length) && (
               <button
                 type="button"
                 onClick={async () => {
                   try {
                     await navigator.share({
-                      files: [new File([blob], fileName, { type: "image/png" })],
+                      files: images.map(
+                        (i) => new File([i.blob], i.fileName, { type: "image/png" }),
+                      ),
                       text: caption,
                     });
                   } catch {
@@ -197,7 +232,7 @@ export default function ShareBar({ getBlob, fileName, name, builderTitle, mode }
                 }}
                 className="mt-2 w-full rounded-full bg-[var(--pink)] px-4 py-3 text-sm font-bold text-white transition hover:brightness-110"
               >
-                Share image via your phone
+                Share all {images.length} to X on your phone
               </button>
             )}
 
