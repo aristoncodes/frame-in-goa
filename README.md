@@ -9,7 +9,7 @@ Two formats share one upload/crop/HEIC pipeline:
 | Mode | Output | Notes |
 | --- | --- | --- |
 | **Builder ID Card** | 1080×1350 poster | Double-sided — front carries the photo, name, stack, generated builder title and a real CODE128 barcode; back frames the wordmark in the ogee-arch cartouche from the HH Goa banner artwork |
-| **PFP Frame** | 1080×1080 | Gold/pink ring, arced wordmark on a text path, गोवा sticker badge |
+| **PFP Frame** | 1080×1080 | Striped green field, gold edge, deep-green band with the event name arced over the top and the dates along the bottom, pink inner hairline, गोवा sticker over the portrait's foot |
 
 ## Running it
 
@@ -24,6 +24,7 @@ Other scripts:
 npm run preview      # render every output to scripts/out/*.png (no browser needed)
 npm run e2e          # drive the real flow in a phone-sized Chromium
 npm run check:size   # assert the card renders at one fixed size everywhere
+npm run check:pfp    # assert the crop control and the PFP frame the photo alike
 ```
 
 `npm run e2e` needs the app running and a fixture directory containing
@@ -130,6 +131,25 @@ discards the crop you set on the other.
 `scripts/e2e.ts` guards this with `fixtures/corners.png`, which carries a
 magenta block in each corner: all four must survive in Whole photo mode, and
 must be gone in Fill frame mode.
+
+### The PFP ring
+
+The ring's outer edge meets the square exactly, so X's circular crop of a profile
+picture lands *on* the ring rather than slicing through it. The striped green
+field fills the square's corners — visible in the downloaded PNG, cropped away by
+X, so it has to look deliberate either way.
+
+The photo is drawn into **the circle the viewer actually sees it through**, not
+the whole square. That distinction was a real bug: the crop control fitted the
+photo to the full square while the ring covered its outer fifth, so every result
+came out noticeably more zoomed-in than the user had positioned. `npm run
+check:pfp` guards it by measuring a marker bar against each surface's visible
+circle — it reads a row off the vertical centre, since the ring's left and right
+marker diamonds sit exactly on it and would otherwise be counted as photo.
+
+Note that a circular frame always loses a rectangle's corners; "Whole photo"
+there means the largest uncropped fit, with the remainder blurred, not literally
+every pixel.
 
 ### The chip column
 

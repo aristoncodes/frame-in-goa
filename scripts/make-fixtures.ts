@@ -39,3 +39,17 @@ for (const [x, y] of [
 
 fs.writeFileSync(path.join(dir, "corners.png"), c.toBuffer("image/png"));
 console.log(`corners.png ${W}x${H}, ${m}px corner markers`);
+
+/**
+ * A full-width magenta bar across the vertical centre. In a circular frame the
+ * corners are always clipped away, so this is the marker that survives: its ends
+ * sit on the photo's left and right edges at the circle's widest point.
+ */
+const b = createCanvas(W, H);
+const bctx = b.getContext("2d");
+bctx.fillStyle = "#2b3f55";
+bctx.fillRect(0, 0, W, H);
+bctx.fillStyle = "#FF00FF";
+bctx.fillRect(0, Math.round(H / 2 - 130), W, 260);
+fs.writeFileSync(path.join(dir, "bar.png"), b.toBuffer("image/png"));
+console.log(`bar.png ${W}x${H}, full-width 260px centre bar`);
