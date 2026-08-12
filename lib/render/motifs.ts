@@ -76,38 +76,52 @@ export function bottomWordmark(ctx: Ctx, w: number, h: number) {
   ctx.restore();
 }
 
-/** Starbursts, the गोवा sticker and the pink squiggle scattered behind the card. */
+/**
+ * Starbursts, the गोवा sticker and the pink squiggle scattered behind the card.
+ *
+ * Every motif is optional: omit a coordinate and that piece is simply not drawn.
+ * The team poster leaves out the gold burst, and would otherwise have to stop
+ * using this function to do it.
+ */
 export function decorations(
   ctx: Ctx,
   w: number,
   h: number,
   layout: {
-    yellowBurst: [number, number, number];
-    pinkBurst: [number, number, number];
-    squiggle: [number, number, number];
-    deva: [number, number, number];
+    yellowBurst?: [number, number, number];
+    pinkBurst?: [number, number, number];
+    squiggle?: [number, number, number];
+    deva?: [number, number, number];
   },
   goaMark: CanvasImageSource | null = null,
 ) {
-  const [yx, yy, yr] = layout.yellowBurst;
-  ctx.save();
-  ctx.fillStyle = COLORS.gold;
-  starburst(ctx, yx, yy, yr, yr * 0.32, 9, 0.35, 12);
-  ctx.fill();
-  ctx.restore();
+  if (layout.yellowBurst) {
+    const [yx, yy, yr] = layout.yellowBurst;
+    ctx.save();
+    ctx.fillStyle = COLORS.gold;
+    starburst(ctx, yx, yy, yr, yr * 0.32, 9, 0.35, 12);
+    ctx.fill();
+    ctx.restore();
+  }
 
-  const [sx, sy, sw] = layout.squiggle;
-  loopySquiggle(ctx, sx, sy, sw, Math.max(3.5, w * 0.0055), COLORS.pink);
+  if (layout.squiggle) {
+    const [sx, sy, sw] = layout.squiggle;
+    loopySquiggle(ctx, sx, sy, sw, Math.max(3.5, w * 0.0055), COLORS.pink);
+  }
 
-  const [dx, dy, ds] = layout.deva;
-  devaBadge(ctx, dx, dy, ds, { rotate: -0.07, glow: true, image: goaMark });
+  if (layout.deva) {
+    const [dx, dy, ds] = layout.deva;
+    devaBadge(ctx, dx, dy, ds, { rotate: -0.07, glow: true, image: goaMark });
+  }
 
-  const [px, py, pr] = layout.pinkBurst;
-  ctx.save();
-  ctx.fillStyle = COLORS.pink;
-  starburst(ctx, px, py, pr, pr * 0.36, 8, 0.2, 5);
-  ctx.fill();
-  ctx.restore();
+  if (layout.pinkBurst) {
+    const [px, py, pr] = layout.pinkBurst;
+    ctx.save();
+    ctx.fillStyle = COLORS.pink;
+    starburst(ctx, px, py, pr, pr * 0.36, 8, 0.2, 5);
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
 /**

@@ -32,7 +32,8 @@ export { DEFAULT_TRANSFORM, DEFAULT_PFP_TRANSFORM } from "./primitives";
 
 export type CardData = {
   name: string;
-  stack: string;
+  /** The builder's team name. Was "stack" until the event asked for teams. */
+  team: string;
   role: string;
   builderTitle: string;
   photo: CanvasImageSource | null;
@@ -169,6 +170,11 @@ export function cardLayout() {
  * Draws everything behind the card: green field, mirrored headline, starbursts,
  * squiggle, गोवा badge and the GOA 2026 wordmark. The lanyard is not part of
  * this — it goes on top of the card, not behind it.
+ *
+ * Private again: these coordinates are tuned to this canvas and this card. The
+ * team poster is landscape with a much wider card, so the same fractions put the
+ * गोवा badge and the bursts behind it; that poster composes its own backdrop from
+ * the same motif functions with coordinates of its own.
  */
 function poster(ctx: Ctx, assets: BrandAssets) {
   posterBackground(ctx, W, H);
@@ -245,14 +251,14 @@ function drawFront(ctx: Ctx, env: RenderEnv, data: CardData, L: CardLayout, asse
   });
   cy += wrapExtra + 34;
 
-  // STACK: <input>
+  // TEAM: <input>
   const labelSize = 18;
   ctx.font = font(FONTS.body, labelSize, 700);
-  const stackLabelW = trackedText(ctx, "STACK:", col, cy, 0.8) + 8;
+  const teamLabelW = trackedText(ctx, "TEAM:", col, cy, 0.8) + 8;
   ctx.font = font(FONTS.body, 21, 500);
   ctx.fillText(
-    ellipsize(ctx, data.stack.trim() || "Add your stack", colW - stackLabelW),
-    col + stackLabelW,
+    ellipsize(ctx, data.team.trim() || "Add your team", colW - teamLabelW),
+    col + teamLabelW,
     cy,
   );
   cy += 30;
@@ -357,7 +363,7 @@ function drawPortrait(
 }
 
 function barcodeValue(data: CardData) {
-  const base = `${data.name || "BUILDER"}${data.stack}${data.role}`
+  const base = `${data.name || "BUILDER"}${data.team}${data.role}`
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "");
   let h = 5381;
@@ -567,9 +573,10 @@ export const ID_CARD_SIZE = { w: W, h: H };
 
 /**
  * Margin around the card in the card-only export, wide enough for its own drop
- * shadow to land inside the frame instead of being clipped off.
+ * shadow to land inside the frame instead of being clipped off. Exported so the
+ * team crop sits in an identically sized frame.
  */
-const CARD_ONLY_PAD = 40;
+export const CARD_ONLY_PAD = 40;
 
 /** Canvas size for `renderCardOnly`: the card plus room for its shadow. */
 export const CARD_ONLY_SIZE = {

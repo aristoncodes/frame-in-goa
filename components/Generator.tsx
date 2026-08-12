@@ -26,13 +26,29 @@ import {
   type PhotoTransform,
 } from "@/lib/render/idcard";
 import { PFP_SIZE, renderPfp } from "@/lib/render/pfp";
+import {
+  emptyMember,
+  renderTeamCardOnly,
+  renderTeamPoster,
+  TEAM_MAX,
+  TEAM_MIN,
+  TEAM_CARD_ONLY_SIZE,
+  TEAM_PHOTO_ASPECT,
+  TEAM_POSTER_SIZE,
+  type TeamMember,
+} from "@/lib/render/team";
 import type { Ctx } from "@/lib/render/primitives";
 import { BackgroundRemovalError, replaceBackground } from "@/lib/segment";
 import PhotoAdjust from "./PhotoAdjust";
 import { BRAND_ASSET_PATHS, NO_ASSETS, type BrandAssets } from "@/lib/render/assets";
 import ShareBar, { type ShareImage } from "./ShareBar";
 
-type Mode = "card" | "pfp";
+type Mode = "card" | "pfp" | "team";
+/**
+ * The two single-photo modes. Team mode keeps a transform per roster slot rather
+ * than one for the whole mode, so it is deliberately outside this.
+ */
+type SoloMode = Exclude<Mode, "team">;
 
 /**
  * What a download contains. The two are different crops of the same artwork, so
@@ -43,7 +59,7 @@ type Mode = "card" | "pfp";
  */
 type Crop = "poster" | "card";
 
-const IDENTITY_DEFAULT = { name: "", stack: "", role: "" };
+const IDENTITY_DEFAULT = { name: "", team: "", role: "" };
 /** Matches the card's photo mount, so the control previews the real backdrop. */
 const KRAFT = COLORS.kraft;
 
@@ -53,20 +69,41 @@ export default function Generator() {
   const [photo, setPhoto] = useState<LoadedPhoto | null>(null);
   // One framing per mode: the crop that suits a badge window is not the crop
   // that suits a circular avatar, and switching tabs shouldn't discard either.
-  const [transforms, setTransforms] = useState<Record<Mode, PhotoTransform>>({
+  const [transforms, setTransforms] = useState<Record<SoloMode, PhotoTransform>>({
     card: DEFAULT_TRANSFORM,
     pfp: DEFAULT_PFP_TRANSFORM,
   });
-  const transform = transforms[mode];
+  const soloMode: SoloMode = mode === "pfp" ? "pfp" : "card";
+  const transform = transforms[soloMode];
   const setTransform = useCallback<Dispatch<SetStateAction<PhotoTransform>>>(
     (update) =>
       setTransforms((prev) => ({
         ...prev,
-        [mode]: typeof update === "function" ? update(prev[mode]) : update,
+        [soloMode]: typeof update === "function" ? update(prev[soloMode]) : update,
       })),
-    [mode],
+    [soloMode],
   );
   const [identity, setIdentity] = useState(IDENTITY_DEFAULT);
+  /**
+   * Team mode's roster. Always TEAM_MAX slots in state so a photo typed into
+   * slot 3 survives toggling down to 2 and back; `teamSize` decides how many are
+   * shown and rendered.
+   */
+  const [teamSize, setTeamSize] = useState<number>(TEAM_MAX);
+  /** A team has one name — it is the card's headline, not a per-person field. */
+  const [teamName, setTeamName] = useState("");
+  const [team, setTeam] = useState(() =>
+    Array.from({ length: TEAM_MAX }, () => ({
+      name: "",
+      photo: null as LoadedPhoto | null,
+      transform: DEFAULT_TRANSFORM,
+      // Same background knock-out the solo card offers, kept per slot.
+      cutout: null as CanvasImageSource | null,
+      useCutout: false,
+      cutoutBusy: false,
+      cutoutError: null as string | null,
+    })),
+  );
   const [titleSalt, setTitleSalt] = useState(0);
   const [crop, setCrop] = useState<Crop>("poster");
   const [error, setError] = useState<string | null>(null);
@@ -87,9 +124,29 @@ export default function Generator() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const builderTitle = useMemo(
-    () => generateBuilderTitle(identity.name, identity.stack, identity.role, titleSalt),
+    () => generateBuilderTitle(identity.name, identity.team, identity.role, titleSalt),
     [identity, titleSalt],
   );
+
+  /**
+   * The roster the renderer takes. Titles come from the very same
+   * `generateBuilderTitle` the solo card uses — called once per person, sharing
+   * the one `titleSalt`, so the single Reroll button rerolls the whole team.
+   */
+  const roster = useMemo<TeamMember[]>(
+    () =>
+      team.slice(0, teamSize).map((m) => ({
+        ...emptyMember(),
+        name: m.name,
+        // The knocked-out copy when that slot's toggle is on, exactly as the solo
+        // card picks between `cutout` and the original.
+        photo: (m.useCutout && m.cutout ? m.cutout : m.photo?.source) ?? null,
+        transform: m.transform,
+        builderTitle: generateBuilderTitle(m.name, teamName, "Builder", titleSalt),
+      })),
+    [team, teamSize, teamName, titleSalt],
+  );
+  const teamData = useMemo(() => ({ teamName, members: roster }), [teamName, roster]);
 
   /* fonts + optional supplied logo ------------------------------------- */
   useEffect(() => {
@@ -147,7 +204,8 @@ export default function Generator() {
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const size = mode === "card" ? ID_CARD_SIZE : PFP_SIZE;
+    const size =
+      mode === "pfp" ? PFP_SIZE : mode === "team" ? TEAM_POSTER_SIZE : ID_CARD_SIZE;
     if (canvas.width !== size.w || canvas.height !== size.h) {
       canvas.width = size.w;
       canvas.height = size.h;
@@ -155,13 +213,15 @@ export default function Generator() {
     const ctx = canvas.getContext("2d") as Ctx | null;
     if (!ctx) return;
 
-    if (mode === "card") {
+    if (mode === "team") {
+      renderTeamPoster(ctx, browserEnv, teamData, assets);
+    } else if (mode === "card") {
       const data: CardData = { ...identity, builderTitle, photo: source, transform };
       renderIdCard(ctx, browserEnv, data, face, assets);
     } else {
       renderPfp(ctx, { photo: source, transform }, assets);
     }
-  }, [mode, face, identity, builderTitle, source, transform, assets]);
+  }, [mode, face, identity, builderTitle, source, transform, assets, teamData]);
 
   // One composite per animation frame, cancelled on the next change, so holding
   // a key or dragging never queues up a backlog of full-res renders.
@@ -194,6 +254,83 @@ export default function Generator() {
     }
   }, []);
 
+  /** Same loader, same accepted formats, same errors — just into a roster slot. */
+  const handleMemberFile = useCallback(
+    async (index: number, file: File | undefined | null) => {
+      if (!file) return;
+      setError(null);
+      setBusy(true);
+      try {
+        const loaded = await loadPhoto(file);
+        setTeam((prev) =>
+          prev.map((m, i) =>
+            i === index
+              ? {
+                  ...m,
+                  photo: loaded,
+                  transform: DEFAULT_TRANSFORM,
+                  cutout: null,
+                  useCutout: false,
+                  cutoutError: null,
+                }
+              : m,
+          ),
+        );
+      } catch (e) {
+        setError(
+          e instanceof UnsupportedImageError
+            ? e.message
+            : "Something went wrong reading that photo. Try another one.",
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [],
+  );
+
+  const setMember = useCallback(
+    (index: number, patch: Partial<{ name: string; transform: PhotoTransform }>) =>
+      setTeam((prev) => prev.map((m, i) => (i === index ? { ...m, ...patch } : m))),
+    [],
+  );
+
+  /**
+   * The solo card's kraft knock-out, per roster slot — same `replaceBackground`.
+   *
+   * Reads the slot from `team` rather than from inside a `setTeam` updater: React
+   * runs updaters during the re-render, not at call time, so a value captured in
+   * one is still unset by the time the line after it runs, and the toggle did
+   * nothing at all.
+   */
+  const toggleMemberCutout = useCallback(
+    async (index: number) => {
+      const m = team[index];
+      if (!m?.photo) return;
+      const flip = (patch: Partial<(typeof team)[number]>) =>
+        setTeam((prev) => prev.map((x, i) => (i === index ? { ...x, ...patch } : x)));
+
+      // Already on, or already computed: a straight flip, no work to do.
+      if (m.useCutout) return flip({ useCutout: false });
+      if (m.cutout) return flip({ useCutout: true });
+
+      flip({ cutoutBusy: true, cutoutError: null });
+      try {
+        const result = await replaceBackground(m.photo.source);
+        flip({ cutout: result, useCutout: true, cutoutBusy: false });
+      } catch (e) {
+        flip({
+          cutoutBusy: false,
+          cutoutError:
+            e instanceof BackgroundRemovalError && e.message.startsWith("Couldn't")
+              ? e.message
+              : "Couldn't remove the background. Keeping the photo as it is.",
+        });
+      }
+    },
+    [team],
+  );
+
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     handleFile(e.dataTransfer.files?.[0]);
@@ -203,15 +340,27 @@ export default function Generator() {
   const exportBlob = useCallback(
     async (which: CardFace | "pfp" = face): Promise<Blob> => {
       await ensureFonts();
-      // The PFP has one crop; only the card offers poster-vs-card-only.
-      const cardOnly = mode === "card" && crop === "card";
+      // The PFP has one crop; the card and the team card both offer
+      // poster-vs-card-only.
+      const cardOnly = mode !== "pfp" && crop === "card";
       const size =
-        mode !== "card" ? PFP_SIZE : cardOnly ? CARD_ONLY_SIZE : ID_CARD_SIZE;
+        mode === "pfp"
+          ? PFP_SIZE
+          : mode === "team"
+            ? cardOnly
+              ? TEAM_CARD_ONLY_SIZE
+              : TEAM_POSTER_SIZE
+            : cardOnly
+              ? CARD_ONLY_SIZE
+              : ID_CARD_SIZE;
       const off = document.createElement("canvas");
       off.width = size.w;
       off.height = size.h;
       const ctx = off.getContext("2d") as Ctx;
-      if (mode === "card") {
+      if (mode === "team") {
+        if (cardOnly) renderTeamCardOnly(ctx, browserEnv, teamData, assets);
+        else renderTeamPoster(ctx, browserEnv, teamData, assets);
+      } else if (mode === "card") {
         const data = { ...identity, builderTitle, photo: source, transform };
         const cardFace = which === "pfp" ? "front" : which;
         if (cardOnly) renderCardOnly(ctx, browserEnv, data, cardFace, assets);
@@ -221,7 +370,7 @@ export default function Generator() {
       }
       return canvasToBlob(off);
     },
-    [mode, crop, face, identity, builderTitle, source, transform, assets],
+    [mode, crop, face, identity, builderTitle, source, transform, assets, teamData],
   );
 
   /**
@@ -245,6 +394,20 @@ export default function Generator() {
       photo: source,
       transform: transforms.card,
     };
+    if (mode === "team") {
+      const blob = await make(TEAM_POSTER_SIZE.w, TEAM_POSTER_SIZE.h, (ctx) =>
+        renderTeamPoster(ctx, browserEnv, teamData, assets),
+      );
+      return [
+        {
+          key: "team",
+          label: `Team card — ${roster.length} builders`,
+          fileName: `hhgoa2026-team-${slug || "squad"}.png`,
+          blob,
+        },
+      ];
+    }
+
     const [front, back, pfp] = await Promise.all([
       make(ID_CARD_SIZE.w, ID_CARD_SIZE.h, (ctx) =>
         renderIdCard(ctx, browserEnv, data, "front", assets),
@@ -261,11 +424,14 @@ export default function Generator() {
       { key: "back", label: "ID card — back", fileName: `hhgoa2026-builder-id-back-${slug}.png`, blob: back },
       { key: "pfp", label: "PFP frame", fileName: `hhgoa2026-pfp-${slug}.png`, blob: pfp },
     ];
-  }, [identity, builderTitle, source, transforms, assets]);
+  }, [mode, identity, builderTitle, source, transforms, assets, teamData, roster]);
 
   const fileName = (which: string) => {
-    if (mode !== "card") return `hhgoa2026-pfp-${slugify(identity.name)}.png`;
     const kind = crop === "card" ? "card" : "poster";
+    if (mode === "pfp") return `hhgoa2026-pfp-${slugify(identity.name)}.png`;
+    if (mode === "team") {
+      return `hhgoa2026-team-${teamSize}-${kind}-${slugify(teamName, "squad")}.png`;
+    }
     return `hhgoa2026-builder-id-${kind}-${which}-${slugify(identity.name)}.png`;
   };
 
@@ -304,7 +470,9 @@ export default function Generator() {
                 aria-label={
                   mode === "card"
                     ? `Builder ID card, ${face} side`
-                    : "Profile picture frame preview"
+                    : mode === "team"
+                      ? `Team card, ${teamSize} builders`
+                      : "Profile picture frame preview"
                 }
               />
               {!fontsLoaded && (
@@ -312,7 +480,7 @@ export default function Generator() {
                   Loading brand type…
                 </div>
               )}
-              {fontsLoaded && !hasPhoto && (
+              {fontsLoaded && !hasPhoto && mode !== "team" && (
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -334,7 +502,7 @@ export default function Generator() {
 
           {/* -------------------------------------------------- actions */}
           <div className="order-5 lg:mt-5">
-            {mode === "card" && <CropTabs crop={crop} onChange={setCrop} />}
+            {mode !== "pfp" && <CropTabs crop={crop} onChange={setCrop} />}
 
             <div className="mt-3 flex flex-wrap gap-3">
               <button
@@ -343,11 +511,13 @@ export default function Generator() {
                 disabled={busy}
                 className="flex-1 rounded-full bg-[var(--gold)] px-5 py-3 text-sm font-bold tracking-wide text-[var(--ink)] transition hover:brightness-110 active:brightness-95 disabled:opacity-60"
               >
-                {mode === "card"
-                  ? crop === "card"
-                    ? "Only ID card"
-                    : "Download post"
-                  : "Download PNG"}
+                {mode === "pfp"
+                  ? "Download PNG"
+                  : crop === "card"
+                    ? mode === "team"
+                      ? "Only team card"
+                      : "Only ID card"
+                    : "Download post"}
               </button>
               {mode === "card" && (
                 <button
@@ -372,7 +542,25 @@ export default function Generator() {
 
         {/* ------------------------------------------------------ controls */}
         <aside className="contents lg:block lg:space-y-6">
+          {mode === "team" && (
+            <TeamPanel
+              team={team}
+              size={teamSize}
+              onSize={setTeamSize}
+              teamName={teamName}
+              onTeamName={setTeamName}
+              onFile={handleMemberFile}
+              onMember={setMember}
+              onCutout={toggleMemberCutout}
+              titles={roster.map((m) => m.builderTitle)}
+              onReroll={() => setTitleSalt((n) => n + 1)}
+              busy={busy}
+              error={error}
+            />
+          )}
+
           <div
+            hidden={mode === "team"}
             onDrop={onDrop}
             onDragOver={(e) => e.preventDefault()}
             className="order-2 rounded-2xl border border-dashed border-[var(--cream)]/25 bg-black/20 p-5 text-center"
@@ -402,7 +590,7 @@ export default function Generator() {
             )}
           </div>
 
-          {photo && (
+          {photo && mode !== "team" && (
             <div className="order-3 rounded-2xl border border-[var(--cream)]/12 bg-black/20 p-5">
               <h2 className="mb-3 text-xs font-bold tracking-[0.2em] text-[var(--gold)]">
                 POSITION YOUR PHOTO
@@ -468,11 +656,11 @@ export default function Generator() {
                 onChange={(v) => setIdentity((s) => ({ ...s, name: v }))}
               />
               <Field
-                label="Stack"
-                value={identity.stack}
-                placeholder="Web3 / AI / Build"
+                label="Team"
+                value={identity.team}
+                placeholder="Midnight Shippers"
                 maxLength={60}
-                onChange={(v) => setIdentity((s) => ({ ...s, stack: v }))}
+                onChange={(v) => setIdentity((s) => ({ ...s, team: v }))}
               />
               <Field
                 label="Role"
@@ -505,6 +693,234 @@ export default function Generator() {
 }
 
 /* ------------------------------------------------------------- sub-parts */
+
+/**
+ * Team mode's controls: a size toggle, then one repeated block per builder —
+ * the same upload button, the same `Field` inputs and the same `PhotoAdjust`
+ * the solo modes use, just once per roster slot. One Reroll for the whole team,
+ * since every title comes from the one shared salt.
+ */
+type TeamSlotState = {
+  name: string;
+  photo: LoadedPhoto | null;
+  transform: PhotoTransform;
+  cutout: CanvasImageSource | null;
+  useCutout: boolean;
+  cutoutBusy: boolean;
+  cutoutError: string | null;
+};
+
+function TeamPanel({
+  team,
+  size,
+  onSize,
+  teamName,
+  onTeamName,
+  onFile,
+  onMember,
+  onCutout,
+  titles,
+  onReroll,
+  busy,
+  error,
+}: {
+  team: TeamSlotState[];
+  size: number;
+  onSize: (n: number) => void;
+  teamName: string;
+  onTeamName: (v: string) => void;
+  onFile: (index: number, file: File | undefined | null) => void;
+  onMember: (index: number, patch: Partial<{ name: string; transform: PhotoTransform }>) => void;
+  onCutout: (index: number) => void;
+  titles: string[];
+  onReroll: () => void;
+  busy: boolean;
+  error: string | null;
+}) {
+  return (
+    <div className="order-2 space-y-4 rounded-2xl border border-[var(--cream)]/12 bg-black/20 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-xs font-bold tracking-[0.2em] text-[var(--gold)]">YOUR SQUAD</h2>
+        <div
+          role="group"
+          aria-label="Squad size"
+          className="flex rounded-full border border-[var(--cream)]/15 bg-black/25 p-1"
+        >
+          {Array.from({ length: TEAM_MAX - TEAM_MIN + 1 }, (_, i) => TEAM_MIN + i).map((n) => (
+            <button
+              key={n}
+              type="button"
+              aria-pressed={size === n}
+              onClick={() => onSize(n)}
+              className={`rounded-full px-3 py-1 text-xs font-bold transition ${
+                size === n
+                  ? "bg-[var(--gold)] text-[var(--ink)]"
+                  : "text-[var(--cream)]/70 hover:text-[var(--cream)]"
+              }`}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <Field
+        label="Team name"
+        value={teamName}
+        placeholder="Midnight Shippers"
+        maxLength={40}
+        onChange={onTeamName}
+      />
+
+      {error && (
+        <p role="alert" className="text-xs font-semibold text-[var(--pink)]">
+          {error}
+        </p>
+      )}
+
+      {team.slice(0, size).map((m, i) => (
+        <TeamSlot
+          key={i}
+          index={i}
+          member={m}
+          title={titles[i] ?? ""}
+          onFile={onFile}
+          onMember={onMember}
+          onCutout={onCutout}
+          busy={busy}
+        />
+      ))}
+
+      <div className="flex items-center justify-between gap-3 border-t border-[var(--cream)]/10 pt-4">
+        <span className="text-[11px] font-bold tracking-[0.18em] text-[var(--cream)]/60">
+          BUILDER TITLES
+        </span>
+        <button
+          type="button"
+          onClick={onReroll}
+          className="rounded-full bg-[var(--pink)] px-3.5 py-1.5 text-[11px] font-bold tracking-wide text-white shadow-sm transition hover:brightness-110 active:brightness-95 active:translate-y-px"
+        >
+          Reroll all
+        </button>
+      </div>
+      <p className="text-xs text-[var(--cream)]/55">
+        JPG, PNG, WebP or HEIC from iPhone. Nothing is uploaded until you share.
+      </p>
+    </div>
+  );
+}
+
+/** One builder's slot. Deliberately the same controls as the solo panel. */
+function TeamSlot({
+  index,
+  member,
+  title,
+  onFile,
+  onMember,
+  onCutout,
+  busy,
+}: {
+  index: number;
+  member: TeamSlotState;
+  title: string;
+  onFile: (index: number, file: File | undefined | null) => void;
+  onMember: (index: number, patch: Partial<{ name: string; transform: PhotoTransform }>) => void;
+  onCutout: (index: number) => void;
+  busy: boolean;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <div className="space-y-3 rounded-xl border border-[var(--cream)]/12 bg-black/20 p-4">
+      <div className="flex items-baseline justify-between">
+        <span className="text-[11px] font-bold tracking-[0.18em] text-[var(--cream)]/60">
+          BUILDER {index + 1}
+        </span>
+        {title && <span className="text-[11px] text-[var(--gold)]">{title}</span>}
+      </div>
+
+      <input
+        ref={input}
+        type="file"
+        accept={ACCEPTED_TYPES}
+        className="sr-only"
+        onChange={(e) => onFile(index, e.target.files?.[0])}
+      />
+      <button
+        type="button"
+        onClick={() => input.current?.click()}
+        disabled={busy}
+        className="w-full rounded-full bg-[var(--pink)] px-4 py-2.5 text-xs font-bold tracking-wide text-white transition hover:brightness-110 disabled:opacity-60"
+      >
+        {busy ? "Working…" : member.photo ? "Change photo" : "Upload photo"}
+      </button>
+
+      <Field
+        label="Name"
+        value={member.name}
+        placeholder="Aryan Chauhan"
+        maxLength={40}
+        onChange={(v) => onMember(index, { name: v })}
+      />
+
+      {member.photo && (
+        <>
+          <button
+            type="button"
+            onClick={() => onCutout(index)}
+            disabled={member.cutoutBusy}
+            aria-pressed={member.useCutout}
+            className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-[11px] font-bold tracking-wide transition disabled:opacity-60 ${
+              member.useCutout
+                ? "border-[var(--gold)] bg-[var(--gold)]/15 text-[var(--gold)]"
+                : "border-[var(--cream)]/20 text-[var(--cream)]/75 hover:border-[var(--cream)]/40"
+            }`}
+          >
+            <span>
+              {member.cutoutBusy ? "REMOVING BACKGROUND…" : "PUT ME ON KRAFT PAPER"}
+              <span className="mt-0.5 block text-[10px] font-medium tracking-normal text-[var(--cream)]/50">
+                {member.cutoutBusy
+                  ? "First run downloads the model"
+                  : "Swaps the background for the card's paper"}
+              </span>
+            </span>
+            <span
+              className={`h-5 w-9 shrink-0 rounded-full p-0.5 transition ${
+                member.useCutout ? "bg-[var(--gold)]" : "bg-[var(--cream)]/25"
+              }`}
+            >
+              <span
+                className={`block h-4 w-4 rounded-full bg-[var(--ink)] transition ${
+                  member.useCutout ? "translate-x-4" : ""
+                }`}
+              />
+            </span>
+          </button>
+          {member.cutoutError && (
+            <p role="alert" className="text-[11px] font-semibold text-[var(--pink)]">
+              {member.cutoutError}
+            </p>
+          )}
+          <PhotoAdjust
+            photo={{
+              ...member.photo,
+              source: (member.useCutout && member.cutout ? member.cutout : member.photo.source) as
+                | HTMLImageElement
+                | HTMLCanvasElement,
+            }}
+            aspect={TEAM_PHOTO_ASPECT}
+            backdrop={KRAFT}
+            transform={member.transform}
+            onChange={(update) =>
+              onMember(index, {
+                transform: typeof update === "function" ? update(member.transform) : update,
+              })
+            }
+          />
+        </>
+      )}
+    </div>
+  );
+}
 
 /**
  * Poster vs card-only. Two different crops of the same artwork, so the choice
@@ -560,6 +976,7 @@ function ModeTabs({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void 
         [
           ["card", "Builder ID Card"],
           ["pfp", "PFP Frame"],
+          ["team", "Team"],
         ] as const
       ).map(([value, label]) => (
         <button

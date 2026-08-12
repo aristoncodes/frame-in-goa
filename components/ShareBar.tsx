@@ -5,7 +5,7 @@ import { EVENT } from "@/lib/brand";
 import { downloadBlob } from "@/lib/browser";
 
 export type ShareImage = {
-  key: "front" | "back" | "pfp";
+  key: "front" | "back" | "pfp" | "team";
   label: string;
   fileName: string;
   blob: Blob;
@@ -15,15 +15,20 @@ type Props = {
   getImages: () => Promise<ShareImage[]>;
   name: string;
   builderTitle: string;
-  mode: "card" | "pfp";
+  mode: ShareMode;
 };
 
+/** Which graphic the share panel is speaking for. */
+export type ShareMode = "card" | "pfp" | "team";
+
 /** Caption is built here so #FrameInGoa can never be dropped by a caller. */
-export function buildCaption(mode: "card" | "pfp", builderTitle: string) {
+export function buildCaption(mode: ShareMode, builderTitle: string) {
   const line =
     mode === "card"
       ? `Just generated my Hacker House Goa 2026 Builder ID — "${builderTitle}" 🌴`
-      : `Framed up for Hacker House Goa 2026 🌴`;
+      : mode === "team"
+        ? `Our squad is going to Hacker House Goa 2026 🌴`
+        : `Framed up for Hacker House Goa 2026 🌴`;
   return `${line}\n\n247 builders. Goa, India. ${EVENT.dates}.\nMake yours 👇\n\n${EVENT.hashtag}`;
 }
 
@@ -98,8 +103,9 @@ export default function ShareBar({ getImages, name, builderTitle, mode }: Props)
       const set = await getImages();
       setImages(set);
 
-      // The link preview can only be one image: use whichever face this tab is on.
-      const hero = set.find((i) => (mode === "pfp" ? i.key === "pfp" : i.key === "front"))!;
+      // The link preview can only be one image: the graphic this tab is on.
+      const heroKey = mode === "pfp" ? "pfp" : mode === "team" ? "team" : "front";
+      const hero = set.find((i) => i.key === heroKey) ?? set[0];
       const form = new FormData();
       form.append("file", new File([hero.blob], hero.fileName, { type: "image/png" }));
       form.append("name", name);
