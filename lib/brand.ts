@@ -24,14 +24,12 @@ export const COLORS = {
 
 /**
  * The event site's own pairing: Imbue for display, Victor Mono for everything
- * else. Yatra One only backs up the गोवा wordmark if the official artwork
- * hasn't loaded.
+ * else. गोवा is never set in type — it only ever appears as the official
+ * artwork (public/brand/goa_hindi.svg), so there is no Devanagari face here.
  */
 export const FONTS = {
   /** Tall high-contrast display serif — "HACKER HOUSE", "BUILDER ID", names. */
   display: "Imbue",
-  /** Devanagari fallback for गोवा when the official mark is unavailable. */
-  deva: "YatraOne",
   /** Utility mono — labels, meta, form text. */
   body: "VictorMono",
 } as const;
@@ -39,9 +37,11 @@ export const FONTS = {
 export const EVENT = {
   name: "HACKER HOUSE GOA 2026",
   dates: "28-31 OCT 2026",
+  /** Spaced en-dash form the event site sets under the headline. */
+  datesLong: "28 – 31 OCT 2026",
   location: "GOA, INDIA",
   url: "HHGOA.COM",
-  studio: "2:47PM STUDIO",
+  studio: "2:47 PM STUDIO",
   deva: "गोवा",
   hashtag: "#FrameInGoa",
 } as const;

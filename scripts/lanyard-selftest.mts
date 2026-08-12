@@ -8,7 +8,7 @@ import { lanyard } from "../lib/render/motifs";
 import type { Ctx } from "../lib/render/primitives";
 
 const root = process.cwd();
-for (const [f, fam] of [["Imbue.woff2", FONTS.display], ["YatraOne.woff2", FONTS.deva], ["VictorMono.woff2", FONTS.body]] as const) {
+for (const [f, fam] of [["Imbue.woff2", FONTS.display], ["VictorMono.woff2", FONTS.body]] as const) {
   GlobalFonts.registerFromPath(path.join(root, "public/fonts", f), fam);
 }
 

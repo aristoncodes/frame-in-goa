@@ -76,7 +76,7 @@ export function bottomWordmark(ctx: Ctx, w: number, h: number) {
   ctx.restore();
 }
 
-/** Starbursts, sparkles and the pink squiggle scattered behind the card. */
+/** Starbursts, the गोवा sticker and the pink squiggle scattered behind the card. */
 export function decorations(
   ctx: Ctx,
   w: number,
@@ -108,9 +108,6 @@ export function decorations(
   starburst(ctx, px, py, pr, pr * 0.36, 8, 0.2, 5);
   ctx.fill();
   ctx.restore();
-
-  sparkle(ctx, w * 0.9, h * 0.76, w * 0.028, COLORS.cream, 0.75);
-  sparkle(ctx, w * 0.955, h * 0.735, w * 0.015, COLORS.cream, 0.5);
 }
 
 /**
@@ -138,29 +135,6 @@ export function loopySquiggle(
   ctx.bezierCurveTo(x + 15 * u, y + 4 * u, x + 34 * u, y - 4 * u, x + 52 * u, y + 6 * u);
   ctx.bezierCurveTo(x + 72 * u, y + 17 * u, x + 86 * u, y + 6 * u, x + 100 * u, y - 8 * u);
   ctx.stroke();
-  ctx.restore();
-}
-
-/** Four-point twinkle. */
-export function sparkle(
-  ctx: Ctx,
-  cx: number,
-  cy: number,
-  r: number,
-  color: string,
-  alpha = 1,
-) {
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - r);
-  ctx.quadraticCurveTo(cx + r * 0.16, cy - r * 0.16, cx + r, cy);
-  ctx.quadraticCurveTo(cx + r * 0.16, cy + r * 0.16, cx, cy + r);
-  ctx.quadraticCurveTo(cx - r * 0.16, cy + r * 0.16, cx - r, cy);
-  ctx.quadraticCurveTo(cx - r * 0.16, cy - r * 0.16, cx, cy - r);
-  ctx.closePath();
-  ctx.fill();
   ctx.restore();
 }
 

@@ -44,16 +44,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="preload"
           as="font"
           type="font/woff2"
-          href="/fonts/YatraOne.woff2"
+          href="/fonts/VictorMono.woff2"
           crossOrigin="anonymous"
         />
+        {/* The hero is the first paint: its three plates should already be in flight. */}
+        <link rel="preload" as="image" href="/brand/hero-scene.webp" />
+        <link rel="preload" as="image" href="/brand/hacker-house.png" />
+        <link rel="preload" as="image" href="/brand/goa_hindi.svg" />
       </head>
       <body>
         {children}
         <footer className="border-t border-[var(--cream)]/10 py-8 text-center text-xs text-[var(--cream)]/45">
-          <p className="font-display tracking-[0.2em] text-[var(--cream)]/60">
-            {EVENT.studio}
-          </p>
+          <p className="studio-mark text-[var(--cream)]/60">{EVENT.studio}</p>
           <p className="mt-1">
             {EVENT.dates} · {EVENT.location} · {EVENT.url}
           </p>

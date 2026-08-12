@@ -12,12 +12,6 @@
   font-display: block;
 }
 @font-face {
-  font-family: "YatraOne";
-  src: url("/fonts/YatraOne.woff2") format("woff2");
-  font-weight: 400;
-  font-display: block;
-}
-@font-face {
   font-family: "VictorMono";
   src: url("/fonts/VictorMono.woff2") format("woff2");
   font-weight: 100 700;
@@ -33,6 +27,11 @@
   --kraft: #d9c9a3;
   --ink: #3a2a1a;
   --cream: #f5f1e6;
+  /* The hero plate is official artwork and carries its own greens/golds; these
+     match it exactly so the illustration never seams against its backdrop. */
+  /* sampled from the plate's own top edge, so a bottom-anchored scene has no seam */
+  --hero-green: #046734;
+  --hero-gold: #fee101;
 }
 
 @theme inline {
@@ -43,7 +42,6 @@
   --color-ink: var(--ink);
   --color-cream: var(--cream);
   --font-display: "Imbue", Georgia, serif;
-  --font-deva: "YatraOne", system-ui, sans-serif;
   --font-sans: "VictorMono", ui-monospace, SFMono-Regular, monospace;
 }
 
@@ -67,8 +65,164 @@ body {
   font-weight: 900;
 }
 
-.font-deva {
-  font-family: var(--font-deva);
+/* ------------------------------------------------------------------- hero */
+
+/*
+ * A reproduction of the hhgoa.com hero. The event site lays the whole thing out
+ * on a fixed 1440x1438 canvas; every offset below is that canvas's coordinate
+ * expressed as a percentage of the plate we crop it to (1440x1030), so the
+ * composition scales to any viewport without drifting from the original.
+ */
+.hero {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1440 / 1030;
+  overflow: hidden;
+  background: var(--hero-green);
+  isolation: isolate;
+}
+
+/* Palms, sea and sunburst — one piece of official artwork, not a rebuild. */
+.hero-scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center bottom;
+  z-index: -1;
+}
+
+/* The plate is cropped out of a taller illustration, so its lower edge is a cut
+   rather than a horizon. Dissolve it into the page instead of butting it. */
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 14%;
+  background: linear-gradient(to bottom, rgba(11, 104, 57, 0), var(--green));
+  pointer-events: none;
+}
+
+/* 139/1440, 240/1030, 1162/1440 */
+.hero-mark {
+  position: absolute;
+  left: 9.653%;
+  top: 23.301%;
+  width: 80.694%;
+}
+
+.hero-wordmark {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/*
+ * गोवा sits *inside* the headline — between the R and the H — so it is
+ * positioned against the wordmark's own box rather than the hero's. Offsets are
+ * the event site's absolute coordinates re-expressed against that box:
+ * (643.06-139)/1162, (280.43-240)/251, 153.94/1162.
+ */
+.hero-goa {
+  position: absolute;
+  left: 43.378%;
+  top: 16.108%;
+  width: 13.248%;
+  height: auto;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35));
+}
+
+/* 513/1030, aligned to the headline's own edges */
+.hero-meta {
+  position: absolute;
+  left: 9.653%;
+  right: 9.653%;
+  top: 49.806%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--hero-gold);
+  /* 22px on the 1440 canvas, floored so it stays legible on a phone */
+  font-size: clamp(0.6875rem, 1.528vw, 1.375rem);
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.hero-meta p {
+  font-weight: 600;
+  margin: 0;
+}
+
+/*
+ * Below ~44rem the 1440-canvas proportions put the headline and its meta line at
+ * a size no one can read. Stack them instead and let the illustration fill the
+ * taller box behind.
+ */
+@media (max-width: 44rem) {
+  .hero {
+    aspect-ratio: auto;
+    min-height: 74svh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1.25rem;
+    padding: 3.5rem 1.25rem 40vw;
+  }
+
+  /*
+   * A portrait viewport is far taller than the plate, and cover-cropping it to
+   * fit throws away the very palms the corners are there for. Sit the artwork on
+   * the bottom edge at full width instead and let the matched backdrop take the
+   * space above it.
+   */
+  .hero-scene {
+    inset: auto 0 0 0;
+    height: auto;
+    object-fit: contain;
+  }
+
+  /* the plate is only ~72vw tall here, so scale the dissolve to it, not to the
+     hero — 14% of a full-height hero would grey out the whole illustration */
+  .hero::after {
+    height: 7vw;
+  }
+
+  /* stays positioned — गोवा is anchored to the headline, not to the hero */
+  .hero-mark {
+    position: relative;
+    width: 100%;
+    left: auto;
+    top: auto;
+  }
+
+  .hero-meta {
+    position: static;
+    width: 100%;
+    left: auto;
+    right: auto;
+    top: auto;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.75rem;
+  }
+}
+
+/*
+ * The 2:47 PM STUDIO signature. Mono at semibold with wide, even tracking —
+ * the same treatment the kraft card footer stamps into the ID (cardFooter in
+ * lib/render/motifs.ts), so the mark reads identically in the DOM and on canvas.
+ * Set in type, it must never fall through to a proportional system face.
+ */
+.studio-mark {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-variant-ligatures: none;
 }
 
 ::selection {

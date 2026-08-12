@@ -1,4 +1,3 @@
-import { COLORS, FONTS } from "../brand";
 
 /**
  * A minimal structural type covering both the browser's CanvasRenderingContext2D
@@ -184,9 +183,13 @@ export function ellipsize(ctx: Ctx, text: string, maxWidth: number) {
 /* -------------------------------------------------------- signature motifs */
 
 /**
- * The pink "गोवा" sticker badge — the single most recognisable HH Goa asset.
- * Reused in both generator outputs. Drawn as offset stroke passes to fake the
- * spray-paint sticker outline seen in the brand artwork.
+ * The "गोवा" sticker badge — the single most recognisable HH Goa asset.
+ *
+ * Strictly the official artwork (public/brand/goa_hindi.svg, rasterised by
+ * `npm run brand`). There is no type-set fallback on purpose: an approximated
+ * Devanagari face never matched the sticker's outline or its gold-on-pink
+ * colouring, so when the mark hasn't loaded this draws nothing and the
+ * composition simply carries on without it.
  */
 export function devaBadge(
   ctx: Ctx,
@@ -196,72 +199,30 @@ export function devaBadge(
   opts: {
     rotate?: number;
     glow?: boolean;
-    plate?: boolean;
-    /** Official गोवा artwork; drawn instead of the type when supplied. */
+    /** Official गोवा artwork. Nothing is drawn without it. */
     image?: CanvasImageSource | null;
   } = {},
 ) {
-  const { rotate = -0.09, glow = true, plate = false, image = null } = opts;
+  const { rotate = -0.09, glow = true, image = null } = opts;
+  if (!image) return;
 
-  if (image) {
-    const iw = (image as HTMLImageElement).width;
-    const ih = (image as HTMLImageElement).height;
-    // The official mark is roughly square; match it on height so callers keep
-    // sizing this the same way they sized the type.
-    const h = size * 1.5;
-    const w = iw && ih ? (iw / ih) * h : h;
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(rotate);
-    if (glow) {
-      // The artwork already has its own sticker outline; a soft dark shadow
-      // lifts it off the background without fighting that.
-      ctx.shadowColor = "rgba(0,0,0,0.45)";
-      ctx.shadowBlur = size * 0.3;
-      ctx.shadowOffsetY = size * 0.05;
-    }
-    ctx.drawImage(image, -w / 2, -h / 2, w, h);
-    ctx.restore();
-    return;
-  }
-
+  const iw = (image as HTMLImageElement).width;
+  const ih = (image as HTMLImageElement).height;
+  // The official mark is roughly square; match it on height so callers keep
+  // sizing this the same way they sized the type.
+  const h = size * 1.5;
+  const w = iw && ih ? (iw / ih) * h : h;
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(rotate);
-  ctx.font = font(FONTS.deva, size, 400);
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  const w = ctx.measureText("गोवा").width;
-
-  if (plate) {
-    ctx.save();
-    ctx.fillStyle = COLORS.pink;
-    roundRect(ctx, -w / 2 - size * 0.3, -size * 0.72, w + size * 0.6, size * 1.42, size * 0.3);
-    ctx.fill();
-    ctx.strokeStyle = COLORS.cream;
-    ctx.lineWidth = Math.max(2, size * 0.05);
-    ctx.stroke();
-    ctx.restore();
-    ctx.fillStyle = COLORS.gold;
-    ctx.fillText("गोवा", 0, size * 0.06);
-    ctx.restore();
-    return;
-  }
-
   if (glow) {
-    ctx.save();
-    ctx.shadowColor = "rgba(230,25,122,0.85)";
-    ctx.shadowBlur = size * 0.42;
-    ctx.fillStyle = COLORS.pink;
-    ctx.fillText("गोवा", 0, 0);
-    ctx.fillText("गोवा", 0, 0);
-    ctx.restore();
+    // The artwork already has its own sticker outline; a soft dark shadow
+    // lifts it off the background without fighting that.
+    ctx.shadowColor = "rgba(0,0,0,0.45)";
+    ctx.shadowBlur = size * 0.3;
+    ctx.shadowOffsetY = size * 0.05;
   }
-  // sticker outline: dark offset then flat pink face
-  ctx.fillStyle = COLORS.pinkDeep;
-  ctx.fillText("गोवा", size * 0.035, size * 0.045);
-  ctx.fillStyle = COLORS.pink;
-  ctx.fillText("गोवा", 0, 0);
+  ctx.drawImage(image, -w / 2, -h / 2, w, h);
   ctx.restore();
 }
 

@@ -1,5 +1,4 @@
 import { CANVAS, COLORS, EVENT, FONTS } from "../brand";
-import { sparkle } from "./motifs";
 import { NO_ASSETS, type BrandAssets } from "./assets";
 import {
   Ctx,
@@ -141,8 +140,6 @@ function background(ctx: Ctx) {
   starburst(ctx, S * 0.95, S * 0.94, S * 0.042, S * 0.014, 8, 0.15, 5);
   ctx.fill();
   ctx.restore();
-  sparkle(ctx, S * 0.94, S * 0.07, S * 0.026, COLORS.cream, 0.85);
-  sparkle(ctx, S * 0.06, S * 0.93, S * 0.02, COLORS.cream, 0.7);
 }
 
 function placeholder(ctx: Ctx) {

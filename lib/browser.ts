@@ -26,7 +26,6 @@ export function ensureFonts(): Promise<void> {
     await Promise.all([
       document.fonts.load(`900 100px "${FONTS.display}"`, "HACKER HOUSE GOA 2026"),
       document.fonts.load(`400 100px "${FONTS.display}"`, "HACKER HOUSE GOA 2026"),
-      document.fonts.load(`400 100px "${FONTS.deva}"`, "गोवा"),
       document.fonts.load(`400 24px "${FONTS.body}"`),
       document.fonts.load(`700 24px "${FONTS.body}"`),
     ]);

@@ -559,7 +559,9 @@ function drawLockup(
     ctx.restore();
   }
 
-  devaBadge(ctx, cx, cy - size * 0.03, size * 0.52, {
+  // Sized against the official sticker's own outline, which is heavier than the
+  // type this used to be set in — at the old 0.52 it swallowed "ER…H".
+  devaBadge(ctx, cx, cy - size * 0.03, size * 0.4, {
     rotate: -0.06,
     glow: false,
     image: assets.goa,

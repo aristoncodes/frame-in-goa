@@ -24,7 +24,6 @@ fs.mkdirSync(outDir, { recursive: true });
 
 for (const [file, family] of [
   ["Imbue.woff2", FONTS.display],
-  ["YatraOne.woff2", FONTS.deva],
   ["VictorMono.woff2", FONTS.body],
 ] as const) {
   GlobalFonts.registerFromPath(path.join(root, "public", "fonts", file), family);

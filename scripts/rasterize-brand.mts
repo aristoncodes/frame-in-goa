@@ -1,34 +1,53 @@
 /**
  * Rasterises the official SVG marks to high-resolution PNGs.
  *
- * Renderers draw these far larger than the SVGs' intrinsic size, and both
- * resvg and some browsers rasterise an SVG at its declared size before scaling,
- * which would soften the edges. Bumping width/height first keeps them sharp.
+ * Two reasons the canvas renderers can't just draw the SVGs directly:
+ *
+ * 1. They draw the marks far larger than the SVGs' intrinsic size, and some
+ *    browsers rasterise an SVG image at its declared size before scaling it,
+ *    which softens the edges.
+ * 2. goa_hindi.svg is a Figma outside-stroke export — gold glyphs plus a second
+ *    masked pass that paints the pink sticker outline. resvg (what @napi-rs/canvas
+ *    uses) mis-renders that mask, so rasterising happens in Chromium instead,
+ *    which reproduces the mark exactly as hhgoa.com shows it.
+ *
+ * The artwork's own colours are kept: nothing here recolours a brand mark.
+ * Run: npm run brand
  */
-import { loadImage, createCanvas } from "@napi-rs/canvas";
+import { createCanvas, loadImage } from "@napi-rs/canvas";
+import { chromium } from "playwright";
 import fs from "node:fs";
 import path from "node:path";
 
 const dir = path.join(process.cwd(), "public", "brand");
 
-for (const [src, out, scale, tint] of [
-  // The site serves गोवा in gold; the brand's accent — and the reference
-  // composite — put the badge in hot pink, so it is recoloured here.
-  ["goa_hindi.svg", "goa-hindi.png", 6, "#E6197A"],
-  ["2-47.svg", "studio-247.png", 4, null],
+const browser = await chromium.launch();
+
+for (const [src, out, scale] of [
+  ["goa_hindi.svg", "goa-hindi.png", 6],
+  ["2-47.svg", "studio-247.png", 4],
 ] as const) {
   const svg = fs.readFileSync(path.join(dir, src), "utf8");
   const w = Number(svg.match(/width="([\d.]+)"/)?.[1] ?? 200);
   const h = Number(svg.match(/height="([\d.]+)"/)?.[1] ?? 200);
-  // Enlarging width/height only scales the artwork if a viewBox maps the old
-  // coordinate space onto the new size; without one the mark is merely padded.
-  let big = svg
-    .replace(/width="[\d.]+"/, `width="${Math.round(w * scale)}"`)
-    .replace(/height="[\d.]+"/, `height="${Math.round(h * scale)}"`);
-  if (!/viewBox=/.test(big)) {
-    big = big.replace(/<svg /, `<svg viewBox="0 0 ${w} ${h}" `);
-  }
-  const img = await loadImage(Buffer.from(big));
+  const tw = Math.round(w * scale);
+  const th = Math.round(h * scale);
+
+  const page = await browser.newPage({
+    viewport: { width: tw, height: th },
+    deviceScaleFactor: 1,
+  });
+  // Inlined rather than loaded from file:// so the SVG's own markup renders
+  // as a document element — an <img> off file:// is blocked from a data: page.
+  await page.setContent(
+    `<body style="margin:0;background:transparent">${svg
+      .replace(/width="[\d.]+"/, `width="${tw}"`)
+      .replace(/height="[\d.]+"/, `height="${th}"`)}</body>`,
+  );
+  const shot = await page.screenshot({ omitBackground: true });
+  await page.close();
+
+  const img = await loadImage(shot);
   const full = createCanvas(img.width, img.height);
   const fctx = full.getContext("2d");
   fctx.drawImage(img, 0, 0);
@@ -36,7 +55,10 @@ for (const [src, out, scale, tint] of [
   // Trim transparent margins. The source marks carry a lot of empty space, and
   // scaling by height would otherwise render the glyphs a fraction of their box.
   const { data } = fctx.getImageData(0, 0, img.width, img.height);
-  let x0 = img.width, y0 = img.height, x1 = -1, y1 = -1;
+  let x0 = img.width,
+    y0 = img.height,
+    x1 = -1,
+    y1 = -1;
   for (let y = 0; y < img.height; y++) {
     for (let x = 0; x < img.width; x++) {
       if (data[(y * img.width + x) * 4 + 3] > 8) {
@@ -47,16 +69,13 @@ for (const [src, out, scale, tint] of [
       }
     }
   }
-  const tw = Math.max(1, x1 - x0 + 1);
-  const th = Math.max(1, y1 - y0 + 1);
-  const c = createCanvas(tw, th);
-  const cctx = c.getContext("2d");
-  cctx.drawImage(full, -x0, -y0);
-  if (tint) {
-    cctx.globalCompositeOperation = "source-in";
-    cctx.fillStyle = tint;
-    cctx.fillRect(0, 0, tw, th);
-  }
+  const cw = Math.max(1, x1 - x0 + 1);
+  const ch = Math.max(1, y1 - y0 + 1);
+  const c = createCanvas(cw, ch);
+  c.getContext("2d").drawImage(full, -x0, -y0);
+
   fs.writeFileSync(path.join(dir, out), c.toBuffer("image/png"));
-  console.log(`${out}  ${img.width}x${img.height} → trimmed ${tw}x${th}`);
+  console.log(`${out}  ${img.width}x${img.height} → trimmed ${cw}x${ch}`);
 }
+
+await browser.close();
