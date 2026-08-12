@@ -4,10 +4,8 @@ import {
   addRoundRect,
   Ctx,
   devaBadge,
-  fitFontSize,
   font,
   grain,
-  mulberry,
   roundRect,
   starburst,
   trackedText,
@@ -151,191 +149,274 @@ export function loopySquiggle(
 export type Punch = { cx: number; cy: number; r: number };
 
 /**
- * Strap width, and the outer edge of the grommet's flange. Kept close together
- * on purpose: a ring much narrower than the webbing leaves the tail's flat
- * bottom edge hanging over bare kraft, and the two read as separate objects
- * rather than as a strap feeding into a ring.
+ * One width for the whole run. The stub is the same tape as the strap above it,
+ * so they abut edge to edge and the join disappears — at different widths the
+ * seam showed as a step, and a stub laid *over* the strap drew a hard horizontal
+ * line across the middle of the webbing.
  */
-const STRAP_W = 88;
-const EYELET_R = 38;
-/** Centre line of the buckle: roughly two thirds of the way down the run. */
-const BUCKLE_Y = 292;
-/** Inset of the stitch line from the webbing's edge. */
-const STITCH_INSET = 8;
+const STRAP_W = 106;
+/** Outer edge of the grommet's flange. */
+const EYELET_R = 30;
+/** Stitch line inset from the edge it follows. */
+const STITCH_INSET = 10;
 
 /**
- * Printed webbing hung from the poster's top edge, through a D-ring, down to a
- * grommet set in the card's punch hole.
+ * Where the pieces sit, all measured off the punch hole so the stub always ends
+ * on the grommet. The stub deliberately overhangs the card's top edge — "247
+ * BUILDERS" reads above it and the grommet lands inside it, which is what makes
+ * the strap look fastened to the card rather than parked on top of it.
+ */
+const TICKET_BOTTOM_BELOW_PUNCH = 15;
+const TICKET_H = 273;
+const KEEPER_OVERLAP = 11;
+
+/**
+ * Printed webbing off the poster's top edge, through a pair of keeper loops,
+ * into a ticket stub that is riveted to the card by a grommet.
  *
- * Four flat pieces, back to front: upper strap, tail, buckle over the join, then
- * the eyelet. Nothing goes behind the card — the ring is the only part that
- * touches it, seated in the hole the way a real grommet reinforces one. The
- * whole assembly is one component and is drawn over whichever face is showing,
- * so flipping the card never moves it.
+ * Four flat pieces drawn back to front — strap, stub, keepers, grommet — as one
+ * call over whichever face is showing. Nothing is layered behind the card: the
+ * grommet is the only thing that touches it.
  */
 export function lanyard(ctx: Ctx, punch: Punch) {
   const cx = punch.cx;
-  const x = cx - STRAP_W / 2;
-  // The tail runs down to the top of the *opening* — far enough that the flange
-  // covers its last ~18px, so the webbing reads as feeding into the ring, but
-  // not so far that pink shows through the hole itself.
-  const tailBottom = punch.cy - punch.r - 1;
+  const ticketBottom = punch.cy + TICKET_BOTTOM_BELOW_PUNCH;
+  const ticketTop = ticketBottom - TICKET_H;
+  const keeperY = ticketTop + KEEPER_OVERLAP;
 
-  // 1. upper strap, cut off by the poster's top edge
-  webbing(ctx, x, -10, STRAP_W, BUCKLE_Y + 14 - -10, (bx, by, bw, bh) =>
-    stampPattern(ctx, bx, by, bw, bh),
-  );
+  upperStrap(ctx, cx - STRAP_W / 2, -12, STRAP_W, ticketTop + 12);
+  ticketStub(ctx, cx - STRAP_W / 2, ticketTop, STRAP_W, TICKET_H);
+  keepers(ctx, cx, keeperY);
 
-  // 3. tail below the buckle
-  webbing(ctx, x, BUCKLE_Y - 10, STRAP_W, tailBottom - (BUCKLE_Y - 10), (bx, by, bw, bh) =>
-    tailMarks(ctx, bx, by, bw, bh),
-  );
+  // The stub's foot covers the card's hole, so cut it again through the stub —
+  // otherwise the grommet frames pink webbing instead of an opening.
+  ctx.save();
+  ctx.fillStyle = COLORS.greenDeep;
+  ctx.beginPath();
+  ctx.arc(punch.cx, punch.cy, punch.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 
-  // 2. the D-ring, last of the three so it covers the join between them
-  dRing(ctx, cx, BUCKLE_Y);
-
-  // 4. the grommet
   eyelet(ctx, punch);
 }
 
-/**
- * One panel of pink webbing: flat fill, then a dashed gold stitch line just
- * inside each edge. `content` draws the print, clipped to the panel.
- */
-function webbing(
-  ctx: Ctx,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  content: (x: number, y: number, w: number, h: number) => void,
-) {
-  ctx.save();
-  ctx.fillStyle = COLORS.pink;
-  ctx.fillRect(x, y, w, h);
+/* ------------------------------------------------------------ upper strap */
 
+/**
+ * The long run of webbing. Flat pink with a whisper of a fold down the middle,
+ * woven-looking grain, two dashed gold stitch lines, and the event name set
+ * sideways in two mirrored columns the way lanyard tape is actually printed.
+ */
+function upperStrap(ctx: Ctx, x: number, y: number, w: number, h: number) {
   ctx.save();
   ctx.beginPath();
   ctx.rect(x, y, w, h);
   ctx.clip();
-  content(x, y, w, h);
+
+  tape(ctx, x, y, w, h);
+
+  // Two columns running opposite ways, set in from the stitching.
+  const text = "HACKER HOUSE · HACKER BUILDERS · GOA 2026 · ";
+  ctx.fillStyle = COLORS.ink;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = font(FONTS.display, 17, 900);
+  for (const [colX, dir] of [
+    [x + w * 0.31, -1],
+    [x + w * 0.69, 1],
+  ] as const) {
+    ctx.save();
+    ctx.translate(colX, y + h / 2);
+    ctx.rotate((dir * Math.PI) / 2);
+    // Repeat until the line overruns the strap at both ends, so neither end
+    // shows the string starting or stopping.
+    let line = text;
+    while (ctx.measureText(line).width < h + 240) line += text;
+    ctx.fillText(line, 0, 0);
+    ctx.restore();
+  }
+
   ctx.restore();
 
-  // stitching, drawn over the print the way it would be sewn through it
+  ctx.save();
   ctx.strokeStyle = COLORS.gold;
   ctx.lineWidth = 2;
-  ctx.setLineDash([7, 5]);
+  ctx.setLineDash([8, 6]);
   ctx.beginPath();
   ctx.moveTo(x + STITCH_INSET, y);
   ctx.lineTo(x + STITCH_INSET, y + h);
   ctx.moveTo(x + w - STITCH_INSET, y);
   ctx.lineTo(x + w - STITCH_INSET, y + h);
   ctx.stroke();
-  ctx.setLineDash([]);
   ctx.restore();
 }
+
+/** Pink tape: flat fill, a soft centre fold, and a fine woven grain. */
+function tape(ctx: Ctx, x: number, y: number, w: number, h: number) {
+  ctx.save();
+  ctx.fillStyle = COLORS.pink;
+  ctx.fillRect(x, y, w, h);
+
+  // Barely-there fold, so the tape has a direction without turning glossy.
+  const fold = ctx.createLinearGradient(x, 0, x + w, 0);
+  fold.addColorStop(0, "rgba(0,0,0,0.10)");
+  fold.addColorStop(0.42, "rgba(255,255,255,0.07)");
+  fold.addColorStop(1, "rgba(0,0,0,0.12)");
+  ctx.fillStyle = fold;
+  ctx.fillRect(x, y, w, h);
+
+  grain(ctx, x, y, w, h, 0.004, 53, "rgba(255,255,255,0.13)", "rgba(120,10,60,0.15)");
+  ctx.restore();
+}
+
+/* ------------------------------------------------------------ ticket stub */
 
 /**
- * The repeating stamp print down the upper strap: two strings tiled at
- * alternating angles — one a shallow diagonal, the next close to vertical — with
- * deterministic jitter on angle and offset so the tiling reads as printed webbing
- * rather than as a ruled list.
+ * The stub the strap ends in: a ticket with a notch bitten out of each side and
+ * a rounded foot that wraps the grommet. Carries the burst and the seat count.
  */
-function stampPattern(ctx: Ctx, x: number, y: number, w: number, h: number) {
-  const rnd = mulberry(23);
-  const lines = ["HACKER HOUSE GOA 2026", "HACKER BUILDERS"];
-  const size = 11;
-  const step = 34;
-
+function ticketStub(ctx: Ctx, x: number, y: number, w: number, h: number) {
+  // Where it crosses onto the kraft it should look like it is sitting on the
+  // card, so it casts a short shadow.
   ctx.save();
-  ctx.fillStyle = COLORS.ink;
-  ctx.globalAlpha = 0.9;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = font(FONTS.display, size, 900);
-
-  for (let i = 0, ty = y + 16; ty < y + h; ty += step, i++) {
-    const steep = i % 2 === 1;
-    const angle = (steep ? -1.28 : -0.42) + (rnd() - 0.5) * 0.22;
-    ctx.save();
-    ctx.translate(x + w / 2 + (rnd() - 0.5) * w * 0.3, ty);
-    ctx.rotate(angle);
-    ctx.fillText(lines[i % lines.length], 0, 0);
-    ctx.restore();
-  }
-  ctx.restore();
-}
-
-/** The tail's print: an eight-point burst over "247 BUILDERS". */
-function tailMarks(ctx: Ctx, x: number, y: number, w: number, h: number) {
-  const cx = x + w / 2;
-
-  ctx.save();
-  ctx.fillStyle = COLORS.black;
-  starburst(ctx, cx, y + h * 0.42, 15, 5.5, 8, 0.32, 9);
+  ctx.shadowColor = "rgba(40,26,10,0.34)";
+  ctx.shadowBlur = 14;
+  ctx.shadowOffsetY = 5;
+  ctx.fillStyle = COLORS.pink;
+  ticketPath(ctx, x, y, w, h);
   ctx.fill();
   ctx.restore();
 
   ctx.save();
+  ticketPath(ctx, x, y, w, h);
+  ctx.clip();
+  tape(ctx, x, y, w, h);
+
+  const cx = x + w / 2;
+
+  ctx.fillStyle = COLORS.black;
+  starburst(ctx, cx, y + h * 0.19, 24, 7.5, 8, 0.3, 9);
+  ctx.fill();
+
   ctx.fillStyle = COLORS.ink;
+  ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  // sets ctx.font to the largest size that still fits between the stitch lines
-  fitFontSize(ctx, "247 BUILDERS", FONTS.display, 900, 16, 9, w - 26, 0.6);
-  trackedText(ctx, "247 BUILDERS", cx, y + h * 0.78, 0.6, "center");
+  ctx.font = font(FONTS.display, 46, 900);
+  ctx.fillText("247", cx, y + h * 0.6);
+  ctx.font = font(FONTS.display, 17, 900);
+  trackedText(ctx, "BUILDERS", cx, y + h * 0.71, 1.4, "center");
   ctx.restore();
-}
 
-/**
- * The D-ring the webbing doubles back through. Flat metal: a three-stop linear
- * ramp rather than the specular banding the old hardware used, so it sits in the
- * poster's illustration style instead of on top of it.
- */
-function dRing(ctx: Ctx, cx: number, cy: number) {
-  const w = STRAP_W + 18;
-  const h = 46;
-  const t = 9;
-  const x = cx - w / 2;
-  const y = cy - h / 2;
-
+  // Stitching follows the outline: the same path scaled about its centre, which
+  // tracks the notches and the foot closely enough at this size.
   ctx.save();
-  const g = ctx.createLinearGradient(x, y, x + w, y + h);
-  g.addColorStop(0, COLORS.silverHi);
-  g.addColorStop(0.55, COLORS.silver);
-  g.addColorStop(1, COLORS.silverLo);
-  ctx.fillStyle = g;
-  ctx.beginPath();
-  addRoundRect(ctx, x, y, w, h, 14);
-  addRoundRect(ctx, x + t, y + t, w - t * 2, h - t * 2, 7);
-  ctx.fill("evenodd");
-
-  ctx.strokeStyle = "rgba(20,18,16,0.35)";
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  addRoundRect(ctx, x, y, w, h, 14);
-  addRoundRect(ctx, x + t, y + t, w - t * 2, h - t * 2, 7);
+  ctx.strokeStyle = COLORS.gold;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 6]);
+  ticketPath(ctx, x, y, w, h, STITCH_INSET, true);
   ctx.stroke();
   ctx.restore();
 }
 
 /**
- * The grommet: a flat ring from the hole's edge out to its flange. Drawn after
- * the card, sitting flush in the punch hole — the hole itself stays open, so
- * whatever is behind the card shows through the middle.
+ * Square shoulders, a notch cut into each side, then a wide rounded foot. The
+ * notches are the thing that says "ticket" rather than "strap".
+ */
+function ticketPath(ctx: Ctx, x: number, y: number, w: number, h: number, d = 0, openTop = false) {
+  const left = x + d;
+  const right = x + w - d;
+  const top = openTop ? y : y + d;
+  const bottom = y + h - d;
+  const foot = Math.max(10, w * 0.46 - d);
+  const ny = y + h * 0.42;
+
+  // True offset of the notches: they stay centred on the *original* edge and
+  // their radius grows with the inset, because the bite is concave. Scaling the
+  // whole outline instead put the stitching straight across the ticket's face.
+  const R = 11 + d;
+  const a = Math.acos(Math.min(0.999, d / R));
+  const ny0 = R * Math.sin(a);
+
+  ctx.beginPath();
+  ctx.moveTo(right, top);
+  ctx.lineTo(right, ny - ny0);
+  ctx.arc(x + w, ny, R, Math.PI + a, Math.PI - a, true);
+  ctx.lineTo(right, bottom - foot);
+  ctx.quadraticCurveTo(right, bottom, x + w / 2, bottom);
+  ctx.quadraticCurveTo(left, bottom, left, bottom - foot);
+  ctx.lineTo(left, ny + ny0);
+  ctx.arc(x, ny, R, a, -a, true);
+  ctx.lineTo(left, top);
+  // Left open for the stitch line: the strap's two dashed runs carry straight on
+  // into the stub's, and a closed top would rule a line across the webbing.
+  if (!openTop) ctx.closePath();
+}
+
+/* ----------------------------------------------------------------- metal */
+
+/** Flat three-stop metal, used by both the keepers and the grommet. */
+function metal(ctx: Ctx, x0: number, y0: number, x1: number, y1: number) {
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  g.addColorStop(0, COLORS.silverHi);
+  g.addColorStop(0.45, COLORS.silver);
+  g.addColorStop(1, COLORS.silverLo);
+  return g;
+}
+
+/**
+ * The pair of loops the tape is folded through, one at each edge. Two small
+ * rings rather than one bar across the strap: a single ring wide enough to span
+ * the webbing dominated the whole assembly.
+ */
+function keepers(ctx: Ctx, cx: number, cy: number) {
+  const w = 32;
+  const h = 48;
+  const t = 7;
+
+  for (const side of [-1, 1] as const) {
+    const x = cx + side * (STRAP_W / 2) - w / 2;
+    const y = cy - h / 2;
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.3)";
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 3;
+    ctx.fillStyle = metal(ctx, x, y, x + w, y + h);
+    ctx.beginPath();
+    addRoundRect(ctx, x, y, w, h, 9);
+    addRoundRect(ctx, x + t, y + t, w - t * 2, h - t * 2, 4);
+    ctx.fill("evenodd");
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(20,18,16,0.32)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    addRoundRect(ctx, x, y, w, h, 9);
+    addRoundRect(ctx, x + t, y + t, w - t * 2, h - t * 2, 4);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/**
+ * The grommet: a flat ring from the hole's edge out to its flange, set in the
+ * card's punch hole. The hole stays open, so whatever is behind the card shows
+ * through the middle.
  */
 function eyelet(ctx: Ctx, p: Punch) {
   const TAU = Math.PI * 2;
+
   ctx.save();
-  const g = ctx.createLinearGradient(
+  ctx.shadowColor = "rgba(40,26,10,0.35)";
+  ctx.shadowBlur = 9;
+  ctx.shadowOffsetY = 3;
+  ctx.fillStyle = metal(
+    ctx,
     p.cx - EYELET_R,
     p.cy - EYELET_R,
     p.cx + EYELET_R,
     p.cy + EYELET_R,
   );
-  g.addColorStop(0, COLORS.silverHi);
-  g.addColorStop(0.55, COLORS.silver);
-  g.addColorStop(1, COLORS.silverLo);
-  ctx.fillStyle = g;
-
   ctx.beginPath();
   ctx.arc(p.cx, p.cy, EYELET_R, 0, TAU);
   ctx.closePath();
@@ -343,18 +424,26 @@ function eyelet(ctx: Ctx, p: Punch) {
   ctx.arc(p.cx, p.cy, p.r, 0, TAU, true);
   ctx.closePath();
   ctx.fill("evenodd");
+  ctx.restore();
 
-  // hairlines top and bottom of the flange, for edge definition on kraft
-  ctx.strokeStyle = "rgba(20,18,16,0.32)";
-  ctx.lineWidth = 1.5;
+  // A bevel: bright just inside the flange, dark just outside the hole.
+  ctx.save();
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = "rgba(255,255,255,0.55)";
+  ctx.beginPath();
+  ctx.arc(p.cx, p.cy, EYELET_R - 4, Math.PI * 0.75, Math.PI * 1.85);
+  ctx.stroke();
+  ctx.strokeStyle = "rgba(20,18,16,0.3)";
+  ctx.lineWidth = 1.6;
   ctx.beginPath();
   ctx.arc(p.cx, p.cy, EYELET_R, 0, TAU);
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(p.cx, p.cy, p.r, 0, TAU);
+  ctx.arc(p.cx, p.cy, p.r + 1, 0, TAU);
   ctx.stroke();
   ctx.restore();
 }
+
 /* ------------------------------------------------------------- icon strip */
 
 export type IconKind = "code" | "palm" | "wave" | "rocket" | "247";

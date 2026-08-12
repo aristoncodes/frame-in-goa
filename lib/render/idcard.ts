@@ -141,8 +141,8 @@ export function layoutName(ctx: Ctx, raw: string, maxWidth = NAME_WIDTH): NameLa
  * grommet. Set high and small: the eyelet's flange reaches ~31px out from here,
  * and it has to land on kraft without crowding the header line beneath it.
  */
-const PUNCH_R = 20;
-const PUNCH_DROP = 48;
+const PUNCH_R = 14;
+const PUNCH_DROP = 53;
 
 /** One fixed geometry, shared by both faces and by every photo. */
 export function cardLayout() {
