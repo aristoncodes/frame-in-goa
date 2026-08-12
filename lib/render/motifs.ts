@@ -149,17 +149,17 @@ export function loopySquiggle(
 export type Punch = { cx: number; cy: number; r: number };
 
 /**
- * The tape is narrow and the stub is wider than it — they are two separate
- * pieces, joined by the keepers across a gap, not one continuous run. Welding
- * them into a single width made the stub read as a stretched continuation of the
- * strap instead of a ticket hung off it.
+ * One width for the whole lanyard: the stub is the same tape as the run above
+ * it, so its edges line up with the strap's rather than shouldering out past
+ * them. They are still two separate pieces — the gap and the keepers say so —
+ * and what keeps the stub from reading as a stretched continuation of the strap
+ * is its length, not a difference in width.
  */
-const STRAP_W = 98;
-const TICKET_W = 128;
+const STRAP_W = 104;
 /** Background left showing between the strap's foot and the stub's head. */
 const JOIN_GAP = 15;
 /** Outer edge of the grommet's flange. */
-const EYELET_R = 30;
+const EYELET_R = 27;
 /** Stitch line inset from the edge it follows. */
 const STITCH_INSET = 10;
 
@@ -170,7 +170,7 @@ const STITCH_INSET = 10;
  * the strap look fastened to the card rather than parked on top of it.
  */
 const TICKET_BOTTOM_BELOW_PUNCH = 15;
-const TICKET_H = 250;
+const TICKET_H = 190;
 const KEEPER_OVERLAP = 4;
 
 /**
@@ -189,7 +189,7 @@ export function lanyard(ctx: Ctx, punch: Punch) {
   const keeperY = ticketTop - KEEPER_OVERLAP;
 
   upperStrap(ctx, cx - STRAP_W / 2, -12, STRAP_W, strapBottom + 12);
-  ticketStub(ctx, cx - TICKET_W / 2, ticketTop, TICKET_W, TICKET_H);
+  ticketStub(ctx, cx - STRAP_W / 2, ticketTop, STRAP_W, TICKET_H);
   keepers(ctx, cx, keeperY);
 
   // The stub's foot covers the card's hole, so cut it again through the stub —
@@ -299,16 +299,16 @@ function ticketStub(ctx: Ctx, x: number, y: number, w: number, h: number) {
   const cx = x + w / 2;
 
   ctx.fillStyle = COLORS.black;
-  starburst(ctx, cx, y + h * 0.18, 23, 7, 8, 0.3, 9);
+  starburst(ctx, cx, y + h * 0.16, 21, 6.5, 8, 0.3, 9);
   ctx.fill();
 
   ctx.fillStyle = COLORS.ink;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = font(FONTS.display, 48, 900);
-  ctx.fillText("247", cx, y + h * 0.56);
-  ctx.font = font(FONTS.display, 17, 900);
-  trackedText(ctx, "BUILDERS", cx, y + h * 0.68, 1.4, "center");
+  ctx.font = font(FONTS.display, 42, 900);
+  ctx.fillText("247", cx, y + h * 0.5);
+  ctx.font = font(FONTS.display, 14, 900);
+  trackedText(ctx, "BUILDERS", cx, y + h * 0.63, 1.2, "center");
   ctx.restore();
 
   // Stitching follows the outline: the same path scaled about its centre, which
@@ -332,7 +332,7 @@ function ticketPath(ctx: Ctx, x: number, y: number, w: number, h: number, d = 0,
   const top = openTop ? y : y + d;
   const bottom = y + h - d;
   const foot = Math.max(10, w * 0.46 - d);
-  const ny = y + h * 0.4;
+  const ny = y + h * 0.36;
 
   // True offset of the notches: they stay centred on the *original* edge and
   // their radius grows with the inset, because the bite is concave. Scaling the
@@ -371,14 +371,14 @@ function metal(ctx: Ctx, x0: number, y0: number, x1: number, y1: number) {
  * the webbing dominated the whole assembly.
  */
 function keepers(ctx: Ctx, cx: number, cy: number) {
-  const w = 46;
-  const h = 36;
-  const t = 7;
+  const w = 42;
+  const h = 32;
+  const t = 6.5;
 
   for (const side of [-1, 1] as const) {
     // Overlapping the tape's edge and reaching out past it, so each loop bridges
     // the gap and visibly holds both pieces.
-    const x = cx + side * (STRAP_W / 2 + w / 2 - 13) - w / 2;
+    const x = cx + side * (STRAP_W / 2 + 14 - w / 2) - w / 2;
     const y = cy - h / 2;
     ctx.save();
     ctx.shadowColor = "rgba(0,0,0,0.3)";

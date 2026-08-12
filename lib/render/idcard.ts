@@ -142,7 +142,7 @@ export function layoutName(ctx: Ctx, raw: string, maxWidth = NAME_WIDTH): NameLa
  * and it has to land on kraft without crowding the header line beneath it.
  */
 const PUNCH_R = 14;
-const PUNCH_DROP = 53;
+const PUNCH_DROP = 50;
 
 /** One fixed geometry, shared by both faces and by every photo. */
 export function cardLayout() {
