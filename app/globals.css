@@ -104,6 +104,21 @@ body {
   pointer-events: none;
 }
 
+/*
+ * The 2:47 PM STUDIO signature, top-left — the official mark itself, not type
+ * dressed up to look like it. 80/1440 and 113/1440 are the event site's own
+ * placement; the top is 65/1030 rather than its 50 because it fits the mark into
+ * a 113x99 box with `contain`, which centres this 546x335 artwork 15px lower.
+ */
+.hero-studio {
+  position: absolute;
+  left: 5.556%;
+  top: 6.311%;
+  width: 7.847%;
+  height: auto;
+  display: block;
+}
+
 /* 139/1440, 240/1030, 1162/1440 */
 .hero-mark {
   position: absolute;
@@ -133,27 +148,20 @@ body {
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35));
 }
 
-/* 513/1030, aligned to the headline's own edges */
+/* 513/1030, aligned to the headline's own left edge */
 .hero-meta {
   position: absolute;
   left: 9.653%;
   right: 9.653%;
   top: 49.806%;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
+  margin: 0;
   color: var(--hero-gold);
   /* 22px on the 1440 canvas, floored so it stays legible on a phone */
   font-size: clamp(0.6875rem, 1.528vw, 1.375rem);
+  font-weight: 600;
   line-height: 1;
   text-transform: uppercase;
   white-space: nowrap;
-}
-
-.hero-meta p {
-  font-weight: 600;
-  margin: 0;
 }
 
 /*
@@ -204,10 +212,16 @@ body {
     left: auto;
     right: auto;
     top: auto;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.6rem;
+    text-align: center;
     font-size: 0.75rem;
+  }
+
+  /* the mark keeps its corner, just bigger against the narrower plate */
+  .hero-studio {
+    left: 1.25rem;
+    top: 1.25rem;
+    width: 22%;
+    max-width: 6rem;
   }
 }
 

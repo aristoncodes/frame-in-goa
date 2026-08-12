@@ -580,34 +580,22 @@ function drawLockup(
 /* ------------------------------------------------------------------ entry */
 
 /**
- * How far each half is turned, in radians, each on its own pivot: the strap on
- * the top edge it hangs from, the hook on the swivel ball. Small and opposed, so
- * the hardware reads as twisted on its swivel rather than as one flat
- * symmetrical decal stuck to the poster.
+ * How far each half is turned, in radians, each on a pivot belonging to the
+ * lanyard rather than to the card: the strap on the top edge it hangs from, the
+ * hook on the swivel ball. Small and opposed, so the hardware reads as twisted
+ * on its own swivel — anchored and hanging — rather than as one flat symmetrical
+ * decal stuck to the poster.
  *
- * They very nearly cancel at the foot — the strap's swing carries the joint
- * ~9px one way and the hook's own turn takes the foot ~10px back — which is what
- * keeps the foot in the punch slot while both halves visibly lean.
+ * The two very nearly cancel at the foot: the strap's swing carries the joint
+ * ~9px left, the hook's own turn takes the tip ~14px back right, and the tip
+ * lands within a pixel of the slot's centre line while both halves visibly lean.
+ *
+ * An earlier pass also leaned the whole assembly about the punch slot. That
+ * pivot belongs to the card, so the hardware swung with the card rather than on
+ * itself; these two replace it.
  */
-const STRAP_TWIST = 0.022;
-const HOOK_TWIST = -0.032;
-
-/**
- * The whole assembly's lean, pivoting on the slot the way it actually would, so
- * the foot stays in the hole while the strap swings — a dead-centre vertical
- * reads as a sticker rather than something bearing weight. Applied to both
- * layers so they lean together, then each twists on the joint independently.
- */
-function leaning(ctx: Ctx, L: CardLayout, draw: () => void) {
-  const px = L.punch.x + L.punch.w / 2;
-  const py = L.punch.y + L.punch.h / 2;
-  ctx.save();
-  ctx.translate(px, py);
-  ctx.rotate(-0.055);
-  ctx.translate(-px, -py);
-  draw();
-  ctx.restore();
-}
+const STRAP_TWIST = 0.05;
+const HOOK_TWIST = -0.06;
 
 export function renderIdCard(
   ctx: Ctx,
@@ -628,9 +616,7 @@ export function renderIdCard(
   const g = lanyardGeometry(W / 2 - 10, L.y, 1.75);
 
   // Back layer: strap, rivet and bail, behind the card face.
-  leaning(ctx, L, () =>
-    lanyardStrap(ctx, g, { rotate: STRAP_TWIST, fullArt: assets.lanyard }),
-  );
+  lanyardStrap(ctx, g, { rotate: STRAP_TWIST, fullArt: assets.lanyard });
 
   if (face === "front") drawFront(ctx, env, data, L, assets);
   else drawBack(ctx, env, L, assets);
@@ -638,9 +624,10 @@ export function renderIdCard(
   // Front layer: body and J-hook, over the card face. Identical on both faces —
   // the card is what's flipping, not the thing it hangs from.
   //
-  // Visible everywhere above the slot, and inside the slot, but not below it —
-  // so the hook runs unbroken from the collar, crosses the card's top edge, and
-  // disappears into the hole.
+  // Visible everywhere above the slot, and inside the slot, but not below it, so
+  // the hook runs unbroken down over the kraft and its tip stops in the hole.
+  // With the foot seated at FOOT_IN_SLOT the curve now clears the card, and this
+  // clip only has to catch the last few pixels of the tip.
   //
   // Clipping at the *card's* top edge instead looked broken: the hook's curve
   // moves sideways over the strip between that edge and the slot, so the
@@ -650,14 +637,12 @@ export function renderIdCard(
   ctx.rect(0, 0, W, L.punch.y);
   addRoundRect(ctx, L.punch.x, L.punch.y, L.punch.w, L.punch.h, L.punch.h / 2);
   ctx.clip();
-  leaning(ctx, L, () =>
-    lanyardHook(ctx, g, {
-      rotate: HOOK_TWIST,
-      strapRotate: STRAP_TWIST,
-      clipArt: assets.clip,
-      fullArt: assets.lanyard,
-    }),
-  );
+  lanyardHook(ctx, g, {
+    rotate: HOOK_TWIST,
+    strapRotate: STRAP_TWIST,
+    clipArt: assets.clip,
+    fullArt: assets.lanyard,
+  });
   ctx.restore();
 
   ctx.restore();

@@ -159,6 +159,25 @@ const clipHeight = (scale: number) => CLIP_UNITS * clipUnit(scale);
 const clipFootDrop = (scale: number) => CLIP_FOOT_UNITS * clipUnit(scale);
 
 /**
+ * How far below the card's top edge the hook's foot comes to rest, in canvas px.
+ *
+ * The punch slot opens 26px below that edge and closes 21px later, at 47. At 50
+ * the J-curve's whole belly clears the card and only the last few px of the curl
+ * pass the slot's lower lip, where the clip takes them — so the tip reads as
+ * going through the hole and behind the kraft, and the shank and return stroke
+ * stay visible either side of it.
+ *
+ * Tuned against renders: below ~40 nothing is occluded at all and the hook reads
+ * as resting on the card rather than hooked into it; past ~55 the lip eats the
+ * curl and it starts looking swallowed again.
+ *
+ * It used to be 101 — 54px below the slot's *bottom* — which put the entire
+ * curve in the region the clip discards. All that survived was the straight
+ * shank crossing the slot.
+ */
+const FOOT_IN_SLOT = 50;
+
+/**
  * The lanyard is drawn as **two independent layers** so the card can sit between
  * them, which is what makes the hook read as threaded through the punch hole
  * rather than stuck on top of it:
@@ -199,9 +218,9 @@ export function lanyardGeometry(
   const scale = Math.min(requestedScale, cardTop / 300);
   const strapW = 76 * scale;
   const px = (n: number) => n * ((strapW / 130) * CLIP_WEIGHT);
-  // Seated so the shank spans the punch slot and the curve falls below it,
-  // where the clip hides it — the hook reads as passing into the hole.
-  const top = cardTop + 101 - clipFootDrop(scale);
+  // Seated from the foot up: fix where the tip lands in the slot, and the crown
+  // falls out of that. The strap simply takes up whatever room is left above.
+  const top = cardTop + FOOT_IN_SLOT - clipFootDrop(scale);
   return {
     cx,
     scale,

@@ -23,6 +23,16 @@ function Hero() {
         fetchPriority="high"
       />
 
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        className="hero-studio"
+        src="/brand/2-47.svg"
+        alt={EVENT.studio}
+        width={546}
+        height={335}
+        fetchPriority="high"
+      />
+
       <h1 className="hero-mark">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -43,12 +53,9 @@ function Hero() {
         />
       </h1>
 
-      <div className="hero-meta">
-        <p>
-          {EVENT.location} &nbsp;·&nbsp; {EVENT.datesLong}
-        </p>
-        <p className="studio-mark">{EVENT.studio}</p>
-      </div>
+      <p className="hero-meta">
+        {EVENT.location} &nbsp;·&nbsp; {EVENT.datesLong}
+      </p>
     </section>
   );
 }
