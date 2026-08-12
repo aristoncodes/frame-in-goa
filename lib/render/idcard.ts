@@ -19,7 +19,6 @@ import {
   Ctx,
   devaBadge,
   drawPhoto,
-  addRoundRect,
   ellipsize,
   fitFontSize,
   font,
@@ -611,38 +610,61 @@ export function renderIdCard(
   ctx.clearRect(0, 0, W, H);
   poster(ctx, assets);
 
-  // One geometry, two passes. The card is composited between them, so it is the
-  // stacking order — not a clip trick — that puts the hook through the hole.
-  const g = lanyardGeometry(W / 2 - 10, L.y, 1.75);
+  /*
+   * One geometry, three passes, stacked so the card is what hides the tip:
+   *
+   *   1. the hook below the slot's midline   ← behind the card
+   *   2. the card face
+   *   3. strap, bail and the hook above that line
+   *
+   * The two hook passes are the same drawing split by complementary clips, so
+   * nothing is painted twice and the two fragments meet exactly. Pass 1 is
+   * covered by the kraft — that is the point: the curl slides in at the hole and
+   * disappears, and the card reads as hung on the hook rather than as a card the
+   * hook is lying on top of.
+   *
+   * The split is the slot's *midline* rather than its upper lip so the shank is
+   * still visible for the first half of the hole before it goes behind. Cut at
+   * the lip it stopped dead on the slot's top edge, which read as butting
+   * against the hole rather than entering it.
+   *
+   * The lanyard hangs on the slot's centre line, not the canvas's, so the shank
+   * comes down where the hole actually is.
+   */
+  const g = lanyardGeometry(L.punch.x + L.punch.w / 2, L.y, 1.75);
+  const split = L.punch.y + L.punch.h / 2;
+  const hook = () =>
+    lanyardHook(ctx, g, {
+      rotate: HOOK_TWIST,
+      strapRotate: STRAP_TWIST,
+      clipArt: assets.clip,
+      fullArt: assets.lanyard,
+    });
 
-  // Back layer: strap, rivet and bail, behind the card face.
-  lanyardStrap(ctx, g, { rotate: STRAP_TWIST, fullArt: assets.lanyard });
+  // 1. the tip, behind the card
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, split, W, H - split);
+  ctx.clip();
+  hook();
+  ctx.restore();
 
+  // 2. the card face
   if (face === "front") drawFront(ctx, env, data, L, assets);
   else drawBack(ctx, env, L, assets);
 
-  // Front layer: body and J-hook, over the card face. Identical on both faces —
+  // 3. everything above the lip, over the card face. Identical on both faces —
   // the card is what's flipping, not the thing it hangs from.
   //
-  // Visible everywhere above the slot, and inside the slot, but not below it, so
-  // the hook runs unbroken down over the kraft and its tip stops in the hole.
-  // With the foot seated at FOOT_IN_SLOT the curve now clears the card, and this
-  // clip only has to catch the last few pixels of the tip.
-  //
-  // Clipping at the *card's* top edge instead looked broken: the hook's curve
-  // moves sideways over the strip between that edge and the slot, so the
-  // fragment above and the fragment in the hole didn't line up.
+  // Clipping at the *card's* top edge instead looked broken: the hook moves
+  // sideways over the strip between that edge and the slot, so the fragment
+  // above and the fragment below didn't line up.
   ctx.save();
   ctx.beginPath();
-  ctx.rect(0, 0, W, L.punch.y);
-  addRoundRect(ctx, L.punch.x, L.punch.y, L.punch.w, L.punch.h, L.punch.h / 2);
+  ctx.rect(0, 0, W, split);
   ctx.clip();
-  lanyardHook(ctx, g, {
-    rotate: HOOK_TWIST,
-    strapRotate: STRAP_TWIST,
-    clipArt: assets.clip,
-    fullArt: assets.lanyard,
-  });
+  lanyardStrap(ctx, g, { rotate: STRAP_TWIST, fullArt: assets.lanyard });
+  hook();
   ctx.restore();
 
   ctx.restore();

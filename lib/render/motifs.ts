@@ -146,36 +146,28 @@ export function loopySquiggle(
  * header text.
  */
 const CLIP_WEIGHT = 1.18;
-/** Overall assembly height in reference units, measured at a 130px strap. */
-const CLIP_UNITS = 370;
+/** Overall assembly height in reference units, crown of the bail to curl. */
+const CLIP_UNITS = 300;
 /**
- * Distance from the assembly's top to the hook's lowest point. Shorter than the
- * full height — the hook bottoms out before the box does — and seating by the
- * full height instead left the foot short of the punch slot.
+ * Crown of the bail down to the *body's* bottom, where the thin hook takes over.
+ * The assembly is seated by this rather than by its lowest point: what has to
+ * line up with the card is where the housing ends and the hook goes in, not
+ * where the curl bottoms out behind it.
  */
-const CLIP_FOOT_UNITS = 380;
+const CLIP_BODY_UNITS = 234;
 const clipUnit = (scale: number) => ((76 * scale) / 130) * CLIP_WEIGHT;
 const clipHeight = (scale: number) => CLIP_UNITS * clipUnit(scale);
-const clipFootDrop = (scale: number) => CLIP_FOOT_UNITS * clipUnit(scale);
+const clipBodyDrop = (scale: number) => CLIP_BODY_UNITS * clipUnit(scale);
 
 /**
- * How far below the card's top edge the hook's foot comes to rest, in canvas px.
+ * How far below the card's top edge the body's bottom sits, in canvas px.
  *
- * The punch slot opens 26px below that edge and closes 21px later, at 47. At 50
- * the J-curve's whole belly clears the card and only the last few px of the curl
- * pass the slot's lower lip, where the clip takes them — so the tip reads as
- * going through the hole and behind the kraft, and the shank and return stroke
- * stay visible either side of it.
- *
- * Tuned against renders: below ~40 nothing is occluded at all and the hook reads
- * as resting on the card rather than hooked into it; past ~55 the lip eats the
- * curl and it starts looking swallowed again.
- *
- * It used to be 101 — 54px below the slot's *bottom* — which put the entire
- * curve in the region the clip discards. All that survived was the straight
- * shank crossing the slot.
+ * Small on purpose. The chrome housing comes to rest just onto the kraft, and
+ * only the thin hook carries on for the ~19px to the punch slot's upper lip,
+ * where it goes behind the card. A fat housing ending at the slot reads as
+ * jammed into it; a housing that stops short of the card reads as floating.
  */
-const FOOT_IN_SLOT = 50;
+const BODY_BELOW_CARD_TOP = 7;
 
 /**
  * The lanyard is drawn as **two independent layers** so the card can sit between
@@ -218,9 +210,11 @@ export function lanyardGeometry(
   const scale = Math.min(requestedScale, cardTop / 300);
   const strapW = 76 * scale;
   const px = (n: number) => n * ((strapW / 130) * CLIP_WEIGHT);
-  // Seated from the foot up: fix where the tip lands in the slot, and the crown
-  // falls out of that. The strap simply takes up whatever room is left above.
-  const top = cardTop + FOOT_IN_SLOT - clipFootDrop(scale);
+  // Seated from the body's bottom up: fix where the housing meets the card, and
+  // the crown falls out of that. The strap takes whatever room is left above.
+  // Seating by the hook's lowest point instead let the shaft stretch down across
+  // the open kraft to reach the slot.
+  const top = cardTop + BODY_BELOW_CARD_TOP - clipBodyDrop(scale);
   return {
     cx,
     scale,
@@ -352,7 +346,7 @@ export function lanyardHook(
       const iw = (fullArt as HTMLImageElement).width;
       const ih = (fullArt as HTMLImageElement).height;
       if (iw && ih) {
-        const h = g.joint.y + px(270);
+        const h = top + px(CLIP_UNITS);
         const w = (iw / ih) * h;
         ctx.save();
         ctx.shadowColor = "rgba(0,0,0,0.4)";
@@ -460,8 +454,11 @@ function bail(ctx: Ctx, cx: number, top: number, px: Px) {
  */
 function snap(ctx: Ctx, cx: number, top: number, px: Px) {
   const collarY = top + px(110);
-  const bodyTop = collarY + px(26);
-  const bodyH = px(132);
+  // Compact, per the reference clip: a stubby housing with a short hook off it.
+  // At the old 26/132 the shaft ran long enough to reach well down the open
+  // kraft before the hook even started.
+  const bodyTop = collarY + px(20);
+  const bodyH = px(104);
   const bodyW = px(84);
   const bodyBottom = bodyTop + bodyH;
 
@@ -502,19 +499,21 @@ function snap(ctx: Ctx, cx: number, top: number, px: Px) {
   ctx.restore();
 
   /* ---- spring trigger down the body's left face ---- */
+  // Placed as fractions of the body rather than in fixed units, so shortening
+  // the housing carries the trigger with it instead of running it off the end.
   ctx.save();
   ctx.strokeStyle = "#6C7278";
   ctx.lineWidth = px(7);
   ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.moveTo(cx - px(16), bodyTop + px(28));
-  ctx.lineTo(cx - px(9), bodyTop + px(104));
+  ctx.moveTo(cx - px(16), bodyTop + bodyH * 0.21);
+  ctx.lineTo(cx - px(9), bodyTop + bodyH * 0.79);
   ctx.stroke();
   // thumb tab poking out to the left
   ctx.lineWidth = px(9);
   ctx.beginPath();
-  ctx.moveTo(cx - px(15), bodyTop + px(52));
-  ctx.lineTo(cx - px(34), bodyTop + px(60));
+  ctx.moveTo(cx - px(15), bodyTop + bodyH * 0.39);
+  ctx.lineTo(cx - px(34), bodyTop + bodyH * 0.45);
   ctx.stroke();
   ctx.restore();
 
@@ -522,15 +521,20 @@ function snap(ctx: Ctx, cx: number, top: number, px: Px) {
   // The path is defined once and stroked three times — a dark base for edge
   // definition, the chrome body, then a specular core. Stroking a single fat
   // flat-gradient line is what made this read as a grey blob.
-  // A near-vertical shank first, then the curve. The shank is the part that
-  // passes through the punch slot: one clean bar of chrome fills the hole,
-  // where a curve that wide showed only as two disconnected slivers.
+  //
+  // A short near-vertical shank, then a tight curl. The shank is the only part
+  // the viewer sees below the card's top edge: it runs the short distance to the
+  // punch slot's upper lip and stops there, and the curl is drawn on the layer
+  // behind the card. The old 70/112 shank put the whole curl out on the open
+  // kraft, which read as a hook lying on the card rather than hooked into it.
   const hook = () => {
     ctx.beginPath();
     ctx.moveTo(cx - px(2), bodyBottom - px(10));
-    ctx.lineTo(cx - px(7), bodyBottom + px(70));
-    ctx.quadraticCurveTo(cx - px(28), bodyBottom + px(108), cx + px(6), bodyBottom + px(112));
-    ctx.quadraticCurveTo(cx + px(42), bodyBottom + px(106), cx + px(38), bodyBottom + px(66));
+    ctx.lineTo(cx - px(6), bodyBottom + px(30));
+    ctx.quadraticCurveTo(cx - px(24), bodyBottom + px(66), cx + px(6), bodyBottom + px(70));
+    // The open tip stops well down: at px(34) it surfaced a stray bead of chrome
+    // just above the split line, reading as a speck in the hole beside the shank.
+    ctx.quadraticCurveTo(cx + px(36), bodyBottom + px(68), cx + px(32), bodyBottom + px(46));
   };
 
   ctx.save();
