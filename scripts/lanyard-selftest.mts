@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
 import { FONTS } from "../lib/brand";
-import { lanyard } from "../lib/render/motifs";
+import { lanyardGeometry, lanyardHook, lanyardStrap } from "../lib/render/motifs";
 import type { Ctx } from "../lib/render/primitives";
 
 const root = process.cwd();
@@ -17,7 +17,11 @@ const src = createCanvas(600, 900);
 const sctx = src.getContext("2d") as unknown as Ctx;
 sctx.fillStyle = "#ffffff";
 sctx.fillRect(0, 0, 600, 900);
-lanyard(sctx, 300, 860, 1.6);
+// Both halves, untwisted and composited flat — a supplied photo is one image of
+// the whole assembly, so that is what the knockout has to be proven against.
+const geo = lanyardGeometry(300, 860, 1.6);
+lanyardStrap(sctx, geo);
+lanyardHook(sctx, geo);
 const tmp = path.join(root, "scripts", "out", "lanyard-src.png");
 fs.writeFileSync(tmp, src.toBuffer("image/png"));
 

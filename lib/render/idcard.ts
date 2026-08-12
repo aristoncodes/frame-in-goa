@@ -8,7 +8,9 @@ import {
   decorations,
   iconColumn,
   iconRow,
-  lanyard,
+  lanyardGeometry,
+  lanyardHook,
+  lanyardStrap,
   mirroredHeadline,
   posterBackground,
   RenderEnv,
@@ -577,6 +579,36 @@ function drawLockup(
 
 /* ------------------------------------------------------------------ entry */
 
+/**
+ * How far each half is turned, in radians, each on its own pivot: the strap on
+ * the top edge it hangs from, the hook on the swivel ball. Small and opposed, so
+ * the hardware reads as twisted on its swivel rather than as one flat
+ * symmetrical decal stuck to the poster.
+ *
+ * They very nearly cancel at the foot — the strap's swing carries the joint
+ * ~9px one way and the hook's own turn takes the foot ~10px back — which is what
+ * keeps the foot in the punch slot while both halves visibly lean.
+ */
+const STRAP_TWIST = 0.022;
+const HOOK_TWIST = -0.032;
+
+/**
+ * The whole assembly's lean, pivoting on the slot the way it actually would, so
+ * the foot stays in the hole while the strap swings — a dead-centre vertical
+ * reads as a sticker rather than something bearing weight. Applied to both
+ * layers so they lean together, then each twists on the joint independently.
+ */
+function leaning(ctx: Ctx, L: CardLayout, draw: () => void) {
+  const px = L.punch.x + L.punch.w / 2;
+  const py = L.punch.y + L.punch.h / 2;
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(-0.055);
+  ctx.translate(-px, -py);
+  draw();
+  ctx.restore();
+}
+
 export function renderIdCard(
   ctx: Ctx,
   env: RenderEnv,
@@ -590,34 +622,44 @@ export function renderIdCard(
   ctx.save();
   ctx.clearRect(0, 0, W, H);
   poster(ctx, assets);
+
+  // One geometry, two passes. The card is composited between them, so it is the
+  // stacking order — not a clip trick — that puts the hook through the hole.
+  const g = lanyardGeometry(W / 2 - 10, L.y, 1.75);
+
+  // Back layer: strap, rivet and bail, behind the card face.
+  leaning(ctx, L, () =>
+    lanyardStrap(ctx, g, { rotate: STRAP_TWIST, fullArt: assets.lanyard }),
+  );
+
   if (face === "front") drawFront(ctx, env, data, L, assets);
   else drawBack(ctx, env, L, assets);
-  // Front only. The back is the card by itself — hardware there reads as a
-  // sticker, since nothing on that face is hanging from anything.
-  if (face === "front") {
-    // Visible everywhere above the slot, and inside the slot, but not below it —
-    // so the hook runs unbroken from the strap, crosses the card's top edge, and
-    // disappears into the hole.
-    //
-    // Clipping at the *card's* top edge instead looked broken: the hook's curve
-    // moves sideways over the strip between that edge and the slot, so the
-    // fragment above and the fragment in the hole didn't line up.
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, 0, W, L.punch.y);
-    addRoundRect(ctx, L.punch.x, L.punch.y, L.punch.w, L.punch.h, L.punch.h / 2);
-    ctx.clip();
-    // Hung with a slight lean, pivoting on the slot the way it actually would,
-    // so the foot stays in the hole while the strap swings — a dead-centre
-    // vertical reads as a sticker rather than something bearing weight.
-    ctx.translate(L.punch.x + L.punch.w / 2, L.punch.y + L.punch.h / 2);
-    // A firmer lean: the strap and hardware end up left of centre while the
-    // foot stays in the hole, which is what "hanging off it" looks like.
-    ctx.rotate(-0.055);
-    ctx.translate(-(L.punch.x + L.punch.w / 2), -(L.punch.y + L.punch.h / 2));
-    lanyard(ctx, W / 2 - 10, L.y, 1.75, assets.clip, assets.lanyard);
-    ctx.restore();
-  }
+
+  // Front layer: body and J-hook, over the card face. Identical on both faces —
+  // the card is what's flipping, not the thing it hangs from.
+  //
+  // Visible everywhere above the slot, and inside the slot, but not below it —
+  // so the hook runs unbroken from the collar, crosses the card's top edge, and
+  // disappears into the hole.
+  //
+  // Clipping at the *card's* top edge instead looked broken: the hook's curve
+  // moves sideways over the strip between that edge and the slot, so the
+  // fragment above and the fragment in the hole didn't line up.
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, W, L.punch.y);
+  addRoundRect(ctx, L.punch.x, L.punch.y, L.punch.w, L.punch.h, L.punch.h / 2);
+  ctx.clip();
+  leaning(ctx, L, () =>
+    lanyardHook(ctx, g, {
+      rotate: HOOK_TWIST,
+      strapRotate: STRAP_TWIST,
+      clipArt: assets.clip,
+      fullArt: assets.lanyard,
+    }),
+  );
+  ctx.restore();
+
   ctx.restore();
 }
 
