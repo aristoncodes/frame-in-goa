@@ -9,13 +9,13 @@ import {
   iconColumn,
   iconRow,
   lanyard,
+  LANYARD_BORE_R,
   mirroredHeadline,
   posterBackground,
   RenderEnv,
 } from "./motifs";
 import {
   Ctx,
-  devaBadge,
   drawPhoto,
   ellipsize,
   fitFontSize,
@@ -137,12 +137,16 @@ export function layoutName(ctx: Ctx, raw: string, maxWidth = NAME_WIDTH): NameLa
 }
 
 /**
- * The punch hole. Round rather than a slot, because what seats in it is a
- * grommet. Set high and small: the eyelet's flange reaches ~31px out from here,
- * and it has to land on kraft without crowding the header line beneath it.
+ * The punch hole, and how far below the card's top edge it sits.
+ *
+ * `PUNCH_DROP` is what positions the whole lanyard, since the art hangs by its
+ * eyelet. At 50 the eyelet's heavy drop shadow reached ~cardTop+95 and collided
+ * with the front's header line, whose caps start around cardTop+80 — the "HACKER
+ * HOUSE GOA 2026" overlap. 22 lifts the assembly 28px and clears it, and clears
+ * the back's frame at cardTop+70 too, while leaving the bore fully on the card.
  */
-const PUNCH_R = 14;
-const PUNCH_DROP = 50;
+const PUNCH_R = LANYARD_BORE_R;
+const PUNCH_DROP = 22;
 
 /** One fixed geometry, shared by both faces and by every photo. */
 export function cardLayout() {
@@ -373,6 +377,8 @@ function barcodeValue(data: CardData) {
  */
 function drawBack(ctx: Ctx, env: RenderEnv, L: CardLayout, assets: BrandAssets) {
   const { x, y, w, h, r } = L;
+  // Kraft stock, same as the front. Only the arch cartouche is green — the block
+  // the wordmark sits in, not the whole card.
   cardShell(ctx, x, y, w, h, r, L.punch);
 
   const cx = x + w / 2;
@@ -380,7 +386,7 @@ function drawBack(ctx: Ctx, env: RenderEnv, L: CardLayout, assets: BrandAssets) 
   const frameTop = y + 70;
   const frameBottom = y + h - 54;
 
-  /* double rule with clipped corners ---------------------------------- */
+  /* double rule ------------------------------------------------------- */
   ctx.save();
   ctx.strokeStyle = "rgba(58,42,26,0.55)";
   ctx.lineWidth = 2.5;
@@ -402,9 +408,7 @@ function drawBack(ctx: Ctx, env: RenderEnv, L: CardLayout, assets: BrandAssets) 
   ctx.restore();
   rule(ctx, cx, frameTop + 56, w * 0.42);
 
-  /* arch cartouche ---------------------------------------------------- */
-  // Centred in the space between the header rule and the chip strip, so the card
-  // grows without leaving a pool of dead kraft under the arch.
+  /* arch cartouche — the green block ---------------------------------- */
   const blockTop = frameTop + 74;
   const blockBottom = frameBottom - 132;
   const archW = w - 116;
@@ -413,29 +417,45 @@ function drawBack(ctx: Ctx, env: RenderEnv, L: CardLayout, assets: BrandAssets) 
 
   ctx.save();
   ogeeArch(ctx, cx, archCy, archW, archH);
-  ctx.fillStyle = "rgba(58,42,26,0.06)";
+  ctx.fillStyle = COLORS.green;
   ctx.fill();
   ctx.strokeStyle = "rgba(58,42,26,0.6)";
   ctx.lineWidth = 3;
   ctx.stroke();
   ctx.restore();
 
-  // inner hairline echoing the arch
+  // gold hairline echoing the arch, just inside the green
   ctx.save();
   ogeeArch(ctx, cx, archCy, archW - 18, archH - 18);
-  ctx.strokeStyle = "rgba(58,42,26,0.28)";
+  ctx.strokeStyle = "rgba(244,196,48,0.42)";
   ctx.lineWidth = 1.4;
   ctx.stroke();
   ctx.restore();
 
-  if (assets.logo) {
-    const iw = (assets.logo as HTMLImageElement).width;
-    const ih = (assets.logo as HTMLImageElement).height;
-    const s = Math.min((archW - 70) / iw, (archH - 90) / ih);
-    ctx.drawImage(assets.logo, cx - (iw * s) / 2, archCy - (ih * s) / 2, iw * s, ih * s);
-  } else {
-    drawLockup(ctx, env, cx, archCy + archH * 0.1, archW - 72, assets);
+  /* the lockup, as supplied artwork, inside the block ----------------- */
+  // hhgoa.com's own stacked "HACKER HOUSE" + गोवा mark
+  // (assets/179-vector-54-30944.svg), drawn as-is: it is already gold, which is
+  // what this green block wants. Fitted to a box inside the arch rather than to
+  // the arch itself — the ogee's point narrows the top, so sizing to the full
+  // height pushed the wordmark's shoulders through the sides.
+  const mark = assets.backLockup ?? assets.logo;
+  const boxW = archW - 96;
+  const boxH = archH * 0.5;
+  const lockupCy = archCy + archH * 0.02;
+  if (mark) {
+    const iw = (mark as HTMLImageElement).width;
+    const ih = (mark as HTMLImageElement).height;
+    const s = Math.min(boxW / iw, boxH / ih);
+    ctx.drawImage(mark, cx - (iw * s) / 2, lockupCy - (ih * s) / 2, iw * s, ih * s);
   }
+
+  ctx.save();
+  ctx.fillStyle = COLORS.gold;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = font(FONTS.body, 14, 700);
+  trackedText(ctx, "GOA 2026", cx, archCy + archH * 0.33, 5, "center");
+  ctx.restore();
 
   /* chip strip -------------------------------------------------------- */
   const chip = 34;
@@ -448,11 +468,9 @@ function drawBack(ctx: Ctx, env: RenderEnv, L: CardLayout, assets: BrandAssets) 
   ctx.fillStyle = COLORS.ink;
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
-  ctx.font = font(FONTS.body, 16, 700);
   ctx.font = font(FONTS.body, 14, 700);
   trackedText(ctx, `${EVENT.dates} · ${EVENT.location}`, cx, frameBottom - 56, 1, "center");
   ctx.fillStyle = COLORS.inkSoft;
-  // Mono is wider than the grotesk this was set for, so keep it short and small.
   ctx.font = font(FONTS.body, 11, 500);
   ctx.fillText("Non-transferable · carry it, don't laminate it", cx, frameBottom - 32);
   ctx.fillText(EVENT.url.toLowerCase(), cx, frameBottom - 15);
@@ -517,65 +535,6 @@ function ogeeArch(ctx: Ctx, cx: number, cy: number, w: number, h: number) {
   ctx.closePath();
 }
 
-/** HACKER / HOUSE stacked with the गोवा sticker locked over the centre. */
-function drawLockup(
-  ctx: Ctx,
-  env: RenderEnv,
-  cx: number,
-  cy: number,
-  maxW: number,
-  assets: BrandAssets,
-) {
-  let size: number;
-
-  if (assets.wordmark) {
-    // Official "Hacker House" artwork, tinted to the card's ink so it sits on
-    // kraft rather than punching a coloured hole in it.
-    const iw = (assets.wordmark as HTMLImageElement).width;
-    const ih = (assets.wordmark as HTMLImageElement).height;
-    const w = maxW;
-    const h = (ih / iw) * w;
-    size = h * 1.6;
-
-    // Recoloured through an offscreen buffer from the render env, so this works
-    // the same in the browser and in the offline harness.
-    const tw = Math.max(1, Math.round(w));
-    const th = Math.max(1, Math.round(h));
-    const { canvas: buf, ctx: bctx } = env.createCanvas(tw, th);
-    bctx.drawImage(assets.wordmark, 0, 0, tw, th);
-    bctx.globalCompositeOperation = "source-in";
-    bctx.fillStyle = COLORS.ink;
-    bctx.fillRect(0, 0, tw, th);
-    ctx.drawImage(buf, cx - w / 2, cy - h / 2, w, h);
-  } else {
-    ctx.save();
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = COLORS.ink;
-    size = 120;
-    ctx.font = font(FONTS.display, size, 900);
-    size = Math.round((size * maxW) / ctx.measureText("HACKER").width);
-    ctx.font = font(FONTS.display, size, 900);
-    ctx.fillText("HACKER", cx, cy - size * 0.44);
-    ctx.fillText("HOUSE", cx, cy + size * 0.44);
-    ctx.restore();
-  }
-
-  // Sized against the official sticker's own outline, which is heavier than the
-  // type this used to be set in — at the old 0.52 it swallowed "ER…H".
-  devaBadge(ctx, cx, cy - size * 0.03, size * 0.4, {
-    rotate: -0.06,
-    glow: false,
-    image: assets.goa,
-  });
-
-  ctx.save();
-  ctx.fillStyle = COLORS.inkSoft;
-  ctx.font = font(FONTS.body, 18, 700);
-  ctx.textAlign = "center";
-  trackedText(ctx, "GOA 2026", cx, cy + size * 1.15, 4, "center");
-  ctx.restore();
-}
 
 /* ------------------------------------------------------------------ entry */
 
@@ -599,9 +558,43 @@ export function renderIdCard(
   // The lanyard is one piece drawn over whichever face is showing, so flipping
   // the card swaps only what is underneath it. Nothing is layered behind the
   // card: the grommet seats in the hole, and the hole is the only contact.
-  lanyard(ctx, L.punch);
+  lanyard(ctx, L.punch, assets.lanyard);
 
   ctx.restore();
 }
 
 export const ID_CARD_SIZE = { w: W, h: H };
+
+/**
+ * Margin around the card in the card-only export, wide enough for its own drop
+ * shadow to land inside the frame instead of being clipped off.
+ */
+const CARD_ONLY_PAD = 40;
+
+/** Canvas size for `renderCardOnly`: the card plus room for its shadow. */
+export const CARD_ONLY_SIZE = {
+  w: CARD_W + CARD_ONLY_PAD * 2,
+  h: CARD_H + CARD_ONLY_PAD * 2,
+};
+
+/**
+ * The card by itself on a transparent ground — no poster, no lanyard, nothing
+ * behind it. Same face artwork as the full poster: the card is drawn from the
+ * same functions at the same size, just translated so its top-left corner lands
+ * at the export's margin, so nothing is scaled or re-laid out for this crop.
+ */
+export function renderCardOnly(
+  ctx: Ctx,
+  env: RenderEnv,
+  data: CardData,
+  face: CardFace,
+  assets: BrandAssets = NO_ASSETS,
+) {
+  const L = cardLayout();
+  ctx.save();
+  ctx.clearRect(0, 0, CARD_ONLY_SIZE.w, CARD_ONLY_SIZE.h);
+  ctx.translate(CARD_ONLY_PAD - L.x, CARD_ONLY_PAD - L.y);
+  if (face === "front") drawFront(ctx, env, data, L, assets);
+  else drawBack(ctx, env, L, assets);
+  ctx.restore();
+}

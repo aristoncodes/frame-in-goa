@@ -5,7 +5,9 @@ import { EVENT } from "@/lib/brand";
  * The landing hero is a reproduction of hhgoa.com's, built from that site's own
  * artwork rather than from type: the gold "HACKER HOUSE" lockup, the official
  * गोवा sticker nested between its two words, and the palms/sunburst plate.
- * Layout offsets live in .hero* (app/globals.css).
+ * Layout offsets live in .hero* (app/globals.css). The beach plate the event
+ * site puts behind this was removed at the client's request — the hero is the
+ * flat green field and the type alone now.
  *
  * The event site's header — "CHECK HYPE" and the APPLY button — is deliberately
  * absent: this is the frame generator, not the ticket page, so that corner is
@@ -14,15 +16,6 @@ import { EVENT } from "@/lib/brand";
 function Hero() {
   return (
     <section className="hero" aria-label="Hacker House Goa 2026">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        className="hero-scene"
-        src="/brand/hero-scene.webp"
-        alt=""
-        aria-hidden
-        fetchPriority="high"
-      />
-
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         className="hero-studio"

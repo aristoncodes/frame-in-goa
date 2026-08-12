@@ -11,6 +11,10 @@ export type BrandAssets = {
   studio: CanvasImageSource | null;
   /** "Hacker House" wordmark (assets/Hacker house.png). */
   wordmark: CanvasImageSource | null;
+  /** The whole lanyard, supplied artwork (brand/lanyard.svg). */
+  lanyard: CanvasImageSource | null;
+  /** Stacked HACKER HOUSE + गोवा lockup for the card back (assets/179-vector). */
+  backLockup: CanvasImageSource | null;
   /** Optional full lockup for the card back (NEXT_PUBLIC_LOGO_URL). */
   logo: CanvasImageSource | null;
 };
@@ -19,6 +23,8 @@ export const NO_ASSETS: BrandAssets = {
   goa: null,
   studio: null,
   wordmark: null,
+  lanyard: null,
+  backLockup: null,
   logo: null,
 };
 
@@ -27,4 +33,6 @@ export const BRAND_ASSET_PATHS = {
   goa: "/brand/goa-hindi.png",
   studio: "/brand/studio-247.png",
   wordmark: "/brand/hacker-house.png",
+  lanyard: "/brand/lanyard.png",
+  backLockup: "/brand/back-lockup.png",
 } as const;

@@ -23,9 +23,18 @@ const dir = path.join(process.cwd(), "public", "brand");
 
 const browser = await chromium.launch();
 
-for (const [src, out, scale] of [
-  ["goa_hindi.svg", "goa-hindi.png", 6],
-  ["2-47.svg", "studio-247.png", 4],
+/**
+ * `trim` crops transparent margins away. Marks want it — their SVGs carry a lot
+ * of empty box and scaling by height would otherwise render the glyphs a
+ * fraction of their size. The lanyard must not be trimmed: the renderers place
+ * it by its eyelet's coordinate inside the original viewBox, and cropping the
+ * box moves that point.
+ */
+for (const [src, out, scale, trim] of [
+  ["goa_hindi.svg", "goa-hindi.png", 6, true],
+  ["2-47.svg", "studio-247.png", 4, true],
+  ["lanyard.svg", "lanyard.png", 3, false],
+  ["back-lockup.svg", "back-lockup.png", 6, true],
 ] as const) {
   const svg = fs.readFileSync(path.join(dir, src), "utf8");
   const w = Number(svg.match(/width="([\d.]+)"/)?.[1] ?? 200);
@@ -51,6 +60,12 @@ for (const [src, out, scale] of [
   const full = createCanvas(img.width, img.height);
   const fctx = full.getContext("2d");
   fctx.drawImage(img, 0, 0);
+
+  if (!trim) {
+    fs.writeFileSync(path.join(dir, out), full.toBuffer("image/png"));
+    console.log(`${out}  ${img.width}x${img.height} (untrimmed)`);
+    continue;
+  }
 
   // Trim transparent margins. The source marks carry a lot of empty space, and
   // scaling by height would otherwise render the glyphs a fraction of their box.

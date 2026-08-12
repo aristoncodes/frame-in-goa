@@ -69,61 +69,48 @@ body {
 
 /*
  * A reproduction of the hhgoa.com hero. The event site lays the whole thing out
- * on a fixed 1440x1438 canvas; every offset below is that canvas's coordinate
- * expressed as a percentage of the plate we crop it to (1440x1030), so the
- * composition scales to any viewport without drifting from the original.
+ * on a fixed 1440-wide canvas; every offset below is one of its coordinates
+ * expressed as a percentage of this box, so the composition scales to any
+ * viewport without drifting from the original.
+ *
+ * The box is 1440x640. It used to be 1440x1030 — the height of the beach plate
+ * that sat behind the type. With the plate gone that left a third of the section
+ * as empty green below the meta line, so the box is re-based to end just under
+ * it. The percentages below are the same absolute coordinates over the new
+ * height: the mark still sits at y=65, the headline at 240, the meta at 513.
  */
 .hero {
   position: relative;
   width: 100%;
-  aspect-ratio: 1440 / 1030;
+  aspect-ratio: 1440 / 640;
   overflow: hidden;
   background: var(--hero-green);
   isolation: isolate;
 }
 
-/* Palms, sea and sunburst — one piece of official artwork, not a rebuild. */
-.hero-scene {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center bottom;
-  z-index: -1;
-}
-
-/* The plate is cropped out of a taller illustration, so its lower edge is a cut
-   rather than a horizon. Dissolve it into the page instead of butting it. */
-.hero::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 14%;
-  background: linear-gradient(to bottom, rgba(11, 104, 57, 0), var(--green));
-  pointer-events: none;
-}
+/* The hero used to carry the event site's beach plate behind the type. It was
+   removed at the client's request; the section is a flat green field now. */
 
 /*
  * The 2:47 PM STUDIO signature, top-left — the official mark itself, not type
  * dressed up to look like it. 80/1440 and 113/1440 are the event site's own
- * placement; the top is 65/1030 rather than its 50 because it fits the mark into
- * a 113x99 box with `contain`, which centres this 546x335 artwork 15px lower.
+ * placement; the top is 65 rather than its 50 because it fits the mark into a
+ * 113x99 box with `contain`, which centres this 546x335 artwork 15px lower.
  */
 .hero-studio {
   position: absolute;
   left: 5.556%;
-  top: 6.311%;
+  top: 10.156%;
   width: 7.847%;
   height: auto;
   display: block;
 }
 
-/* 139/1440, 240/1030, 1162/1440 */
+/* 139/1440, 240/640, 1162/1440 */
 .hero-mark {
   position: absolute;
   left: 9.653%;
-  top: 23.301%;
+  top: 37.5%;
   width: 80.694%;
 }
 
@@ -148,12 +135,12 @@ body {
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35));
 }
 
-/* 513/1030, aligned to the headline's own left edge */
+/* 513/640, aligned to the headline's own left edge */
 .hero-meta {
   position: absolute;
   left: 9.653%;
   right: 9.653%;
-  top: 49.806%;
+  top: 80.156%;
   margin: 0;
   color: var(--hero-gold);
   /* 22px on the 1440 canvas, floored so it stays legible on a phone */
@@ -166,36 +153,17 @@ body {
 
 /*
  * Below ~44rem the 1440-canvas proportions put the headline and its meta line at
- * a size no one can read. Stack them instead and let the illustration fill the
- * taller box behind.
+ * a size no one can read. Stack them centred instead.
  */
 @media (max-width: 44rem) {
   .hero {
     aspect-ratio: auto;
-    min-height: 74svh;
+    min-height: 58svh;
     display: flex;
     flex-direction: column;
     justify-content: center;
     gap: 1.25rem;
-    padding: 3.5rem 1.25rem 40vw;
-  }
-
-  /*
-   * A portrait viewport is far taller than the plate, and cover-cropping it to
-   * fit throws away the very palms the corners are there for. Sit the artwork on
-   * the bottom edge at full width instead and let the matched backdrop take the
-   * space above it.
-   */
-  .hero-scene {
-    inset: auto 0 0 0;
-    height: auto;
-    object-fit: contain;
-  }
-
-  /* the plate is only ~72vw tall here, so scale the dissolve to it, not to the
-     hero — 14% of a full-height hero would grey out the whole illustration */
-  .hero::after {
-    height: 7vw;
+    padding: 3.5rem 1.25rem 3.5rem;
   }
 
   /* stays positioned — गोवा is anchored to the headline, not to the hero */

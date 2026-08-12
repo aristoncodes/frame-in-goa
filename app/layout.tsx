@@ -48,7 +48,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           crossOrigin="anonymous"
         />
         {/* The hero is the first paint: its three plates should already be in flight. */}
-        <link rel="preload" as="image" href="/brand/hero-scene.webp" />
         <link rel="preload" as="image" href="/brand/hacker-house.png" />
         <link rel="preload" as="image" href="/brand/goa_hindi.svg" />
       </head>

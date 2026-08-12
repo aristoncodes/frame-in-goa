@@ -11,7 +11,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { FONTS } from "../lib/brand";
 import { generateBuilderTitle } from "../lib/builderTitle";
-import { renderIdCard, ID_CARD_SIZE, type CardData } from "../lib/render/idcard";
+import {
+  CARD_ONLY_SIZE,
+  ID_CARD_SIZE,
+  renderCardOnly,
+  renderIdCard,
+  type CardData,
+} from "../lib/render/idcard";
 import { DEFAULT_TRANSFORM } from "../lib/render/primitives";
 import { renderPfp, PFP_SIZE } from "../lib/render/pfp";
 import type { RenderEnv } from "../lib/render/motifs";
@@ -35,6 +41,8 @@ for (const [key, file] of [
   ["goa", "goa-hindi.png"],
   ["studio", "studio-247.png"],
   ["wordmark", "hacker-house.png"],
+  ["lanyard", "lanyard.png"],
+  ["backLockup", "back-lockup.png"],
 ] as const) {
   const p = path.join(root, "public", "brand", file);
   if (fs.existsSync(p)) {
@@ -131,6 +139,21 @@ for (const [label, photo] of [
   const ctx = canvas.getContext("2d") as unknown as Ctx;
   renderIdCard(ctx, env, { ...base, photo } as CardData, "back", assets);
   write(`${label}.png`, canvas);
+}
+
+// The card-only crop, both faces. These are what the "Card only" download
+// produces: the card on a transparent ground, nothing behind it.
+for (const face of ["front", "back"] as const) {
+  const canvas = createCanvas(CARD_ONLY_SIZE.w, CARD_ONLY_SIZE.h);
+  const ctx = canvas.getContext("2d") as unknown as Ctx;
+  renderCardOnly(
+    ctx,
+    env,
+    { ...base, photo: face === "front" ? testPhoto(900, 1400, "portrait") : null } as CardData,
+    face,
+    assets,
+  );
+  write(`cardonly-${face}.png`, canvas);
 }
 
 for (const [label, photo, t] of [

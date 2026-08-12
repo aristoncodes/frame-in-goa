@@ -14,10 +14,12 @@ import { browserEnv, canvasToBlob, downloadBlob, ensureFonts, slugify } from "@/
 import { generateBuilderTitle } from "@/lib/builderTitle";
 import { ACCEPTED_TYPES, loadPhoto, UnsupportedImageError, type LoadedPhoto } from "@/lib/image";
 import {
+  CARD_ONLY_SIZE,
   DEFAULT_PFP_TRANSFORM,
   DEFAULT_TRANSFORM,
   ID_CARD_SIZE,
   PHOTO_SLOT_ASPECT,
+  renderCardOnly,
   renderIdCard,
   type CardData,
   type CardFace,
@@ -31,6 +33,15 @@ import { BRAND_ASSET_PATHS, NO_ASSETS, type BrandAssets } from "@/lib/render/ass
 import ShareBar, { type ShareImage } from "./ShareBar";
 
 type Mode = "card" | "pfp";
+
+/**
+ * What a download contains. The two are different crops of the same artwork, so
+ * the choice has to be made before the button is pressed rather than after.
+ *
+ * - `poster` — the whole composite: green field, type, lanyard, card.
+ * - `card`   — the card alone on a transparent ground, cropped to its own edges.
+ */
+type Crop = "poster" | "card";
 
 const IDENTITY_DEFAULT = { name: "", stack: "", role: "" };
 /** Matches the card's photo mount, so the control previews the real backdrop. */
@@ -57,6 +68,7 @@ export default function Generator() {
   );
   const [identity, setIdentity] = useState(IDENTITY_DEFAULT);
   const [titleSalt, setTitleSalt] = useState(0);
+  const [crop, setCrop] = useState<Crop>("poster");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [fontsLoaded, setFontsLoaded] = useState(false);
@@ -96,6 +108,8 @@ export default function Generator() {
     load(BRAND_ASSET_PATHS.goa, "goa");
     load(BRAND_ASSET_PATHS.studio, "studio");
     load(BRAND_ASSET_PATHS.wordmark, "wordmark");
+    load(BRAND_ASSET_PATHS.lanyard, "lanyard");
+    load(BRAND_ASSET_PATHS.backLockup, "backLockup");
     // Optional override: a full lockup for the card back.
     load(process.env.NEXT_PUBLIC_LOGO_URL, "logo");
   }, []);
@@ -189,25 +203,25 @@ export default function Generator() {
   const exportBlob = useCallback(
     async (which: CardFace | "pfp" = face): Promise<Blob> => {
       await ensureFonts();
-      const size = mode === "card" ? ID_CARD_SIZE : PFP_SIZE;
+      // The PFP has one crop; only the card offers poster-vs-card-only.
+      const cardOnly = mode === "card" && crop === "card";
+      const size =
+        mode !== "card" ? PFP_SIZE : cardOnly ? CARD_ONLY_SIZE : ID_CARD_SIZE;
       const off = document.createElement("canvas");
       off.width = size.w;
       off.height = size.h;
       const ctx = off.getContext("2d") as Ctx;
       if (mode === "card") {
-        renderIdCard(
-          ctx,
-          browserEnv,
-          { ...identity, builderTitle, photo: source, transform },
-          which === "pfp" ? "front" : which,
-          assets,
-        );
+        const data = { ...identity, builderTitle, photo: source, transform };
+        const cardFace = which === "pfp" ? "front" : which;
+        if (cardOnly) renderCardOnly(ctx, browserEnv, data, cardFace, assets);
+        else renderIdCard(ctx, browserEnv, data, cardFace, assets);
       } else {
         renderPfp(ctx, { photo: source, transform }, assets);
       }
       return canvasToBlob(off);
     },
-    [mode, face, identity, builderTitle, source, transform, assets],
+    [mode, crop, face, identity, builderTitle, source, transform, assets],
   );
 
   /**
@@ -249,10 +263,11 @@ export default function Generator() {
     ];
   }, [identity, builderTitle, source, transforms, assets]);
 
-  const fileName = (which: string) =>
-    `hhgoa2026-${mode === "card" ? `builder-id-${which}` : "pfp"}-${slugify(
-      identity.name,
-    )}.png`;
+  const fileName = (which: string) => {
+    if (mode !== "card") return `hhgoa2026-pfp-${slugify(identity.name)}.png`;
+    const kind = crop === "card" ? "card" : "poster";
+    return `hhgoa2026-builder-id-${kind}-${which}-${slugify(identity.name)}.png`;
+  };
 
   const download = async (which: CardFace | "pfp") => {
     setBusy(true);
@@ -319,23 +334,29 @@ export default function Generator() {
 
           {/* -------------------------------------------------- actions */}
           <div className="order-5 lg:mt-5">
-            <div className="flex flex-wrap gap-3">
+            {mode === "card" && <CropTabs crop={crop} onChange={setCrop} />}
+
+            <div className="mt-3 flex flex-wrap gap-3">
               <button
                 type="button"
                 onClick={() => download(mode === "card" ? face : "pfp")}
                 disabled={busy}
-                className="flex-1 rounded-full bg-[var(--gold)] px-5 py-3 text-sm font-bold tracking-wide text-[var(--ink)] transition hover:brightness-110 disabled:opacity-60"
+                className="flex-1 rounded-full bg-[var(--gold)] px-5 py-3 text-sm font-bold tracking-wide text-[var(--ink)] transition hover:brightness-110 active:brightness-95 disabled:opacity-60"
               >
-                Download PNG
+                {mode === "card"
+                  ? crop === "card"
+                    ? "Only ID card"
+                    : "Download post"
+                  : "Download PNG"}
               </button>
               {mode === "card" && (
                 <button
                   type="button"
                   onClick={() => download(face === "front" ? "back" : "front")}
                   disabled={busy}
-                  className="rounded-full border border-[var(--cream)]/25 px-5 py-3 text-sm font-semibold text-[var(--cream)] transition hover:border-[var(--gold)] hover:text-[var(--gold)] disabled:opacity-60"
+                  className="rounded-full border border-[var(--cream)]/25 px-5 py-3 text-sm font-semibold text-[var(--cream)] transition hover:border-[var(--gold)] hover:text-[var(--gold)] active:border-[var(--gold)] disabled:opacity-60"
                 >
-                  Also get the {face === "front" ? "back" : "front"}
+                  Also the {face === "front" ? "back" : "front"}
                 </button>
               )}
             </div>
@@ -468,7 +489,7 @@ export default function Generator() {
                   <button
                     type="button"
                     onClick={() => setTitleSalt((s) => s + 1)}
-                    className="text-[11px] font-semibold text-[var(--pink)] underline underline-offset-2 hover:text-[var(--gold)]"
+                    className="rounded-full bg-[var(--pink)] px-3.5 py-1.5 text-[11px] font-bold tracking-wide text-white shadow-sm transition hover:brightness-110 active:brightness-95 active:translate-y-px"
                   >
                     Reroll
                   </button>
@@ -484,6 +505,49 @@ export default function Generator() {
 }
 
 /* ------------------------------------------------------------- sub-parts */
+
+/**
+ * Poster vs card-only. Two different crops of the same artwork, so the choice
+ * belongs before the download button rather than in a menu behind it.
+ */
+function CropTabs({ crop, onChange }: { crop: Crop; onChange: (c: Crop) => void }) {
+  return (
+    <div>
+      <div
+        role="tablist"
+        aria-label="What to download"
+        className="flex w-full rounded-full border border-[var(--cream)]/15 bg-black/25 p-1"
+      >
+        {(
+          [
+            ["poster", "Full poster"],
+            ["card", "Card only"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            role="tab"
+            type="button"
+            aria-selected={crop === value}
+            onClick={() => onChange(value)}
+            className={`flex-1 rounded-full px-4 py-2 text-xs font-bold tracking-wide transition ${
+              crop === value
+                ? "bg-[var(--cream)] text-[var(--ink)]"
+                : "text-[var(--cream)]/70 hover:text-[var(--cream)]"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 text-center text-[11px] text-[var(--cream)]/50">
+        {crop === "poster"
+          ? "The whole composite — background, lanyard and card."
+          : "Just the card, cropped to its edges on a transparent background."}
+      </p>
+    </div>
+  );
+}
 
 function ModeTabs({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
   return (
