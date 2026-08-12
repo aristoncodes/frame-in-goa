@@ -8,9 +8,7 @@ import {
   decorations,
   iconColumn,
   iconRow,
-  lanyardGeometry,
-  lanyardHook,
-  lanyardStrap,
+  lanyard,
   mirroredHeadline,
   posterBackground,
   RenderEnv,
@@ -138,11 +136,16 @@ export function layoutName(ctx: Ctx, raw: string, maxWidth = NAME_WIDTH): NameLa
   return best && best.size > one ? best : single;
 }
 
+/**
+ * The punch hole. Round rather than a slot, because what seats in it is a
+ * grommet. Set high and small: the eyelet's flange reaches ~31px out from here,
+ * and it has to land on kraft without crowding the header line beneath it.
+ */
+const PUNCH_R = 20;
+const PUNCH_DROP = 48;
+
 /** One fixed geometry, shared by both faces and by every photo. */
 export function cardLayout() {
-  // Mirrors the punch hole cardShell cuts, so the lanyard can be clipped to it.
-  const punchW = CARD_W * 0.19;
-  const punchH = CARD_H * 0.026;
   return {
     x: CARD_X,
     y: CARD_Y,
@@ -150,12 +153,9 @@ export function cardLayout() {
     h: CARD_H,
     r: CARD_R,
     photo: { x: PHOTO_X, y: CARD_Y + HEADER_H, w: SLOT_W, h: SLOT_H },
-    punch: {
-      x: CARD_X + (CARD_W - punchW) / 2,
-      y: CARD_Y + CARD_H * 0.032,
-      w: punchW,
-      h: punchH,
-    },
+    // The single source for the hole: cardShell cuts it and the lanyard seats
+    // its ring in it, so the two can never drift apart.
+    punch: { cx: CARD_X + CARD_W / 2, cy: CARD_Y + PUNCH_DROP, r: PUNCH_R },
   };
 }
 
@@ -163,7 +163,8 @@ export function cardLayout() {
 
 /**
  * Draws everything behind the card: green field, mirrored headline, starbursts,
- * squiggle, गोवा badge, GOA 2026 wordmark, lanyard strap and clip.
+ * squiggle, गोवा badge and the GOA 2026 wordmark. The lanyard is not part of
+ * this — it goes on top of the card, not behind it.
  */
 function poster(ctx: Ctx, assets: BrandAssets) {
   posterBackground(ctx, W, H);
@@ -181,7 +182,7 @@ function poster(ctx: Ctx, assets: BrandAssets) {
 
 function drawFront(ctx: Ctx, env: RenderEnv, data: CardData, L: CardLayout, assets: BrandAssets) {
   const { x, y, w, h, r } = L;
-  cardShell(ctx, x, y, w, h, r);
+  cardShell(ctx, x, y, w, h, r, L.punch);
 
   const left = CONTENT_LEFT;
   const right = CONTENT_RIGHT;
@@ -372,7 +373,7 @@ function barcodeValue(data: CardData) {
  */
 function drawBack(ctx: Ctx, env: RenderEnv, L: CardLayout, assets: BrandAssets) {
   const { x, y, w, h, r } = L;
-  cardShell(ctx, x, y, w, h, r);
+  cardShell(ctx, x, y, w, h, r, L.punch);
 
   const cx = x + w / 2;
   const inset = 24;
@@ -578,24 +579,6 @@ function drawLockup(
 
 /* ------------------------------------------------------------------ entry */
 
-/**
- * How far each half is turned, in radians, each on a pivot belonging to the
- * lanyard rather than to the card: the strap on the top edge it hangs from, the
- * hook on the swivel ball. Small and opposed, so the hardware reads as twisted
- * on its own swivel — anchored and hanging — rather than as one flat symmetrical
- * decal stuck to the poster.
- *
- * The two very nearly cancel at the foot: the strap's swing carries the joint
- * ~9px left, the hook's own turn takes the tip ~14px back right, and the tip
- * lands within a pixel of the slot's centre line while both halves visibly lean.
- *
- * An earlier pass also leaned the whole assembly about the punch slot. That
- * pivot belongs to the card, so the hardware swung with the card rather than on
- * itself; these two replace it.
- */
-const STRAP_TWIST = 0.05;
-const HOOK_TWIST = -0.06;
-
 export function renderIdCard(
   ctx: Ctx,
   env: RenderEnv,
@@ -610,62 +593,13 @@ export function renderIdCard(
   ctx.clearRect(0, 0, W, H);
   poster(ctx, assets);
 
-  /*
-   * One geometry, three passes, stacked so the card is what hides the tip:
-   *
-   *   1. the hook below the slot's midline   ← behind the card
-   *   2. the card face
-   *   3. strap, bail and the hook above that line
-   *
-   * The two hook passes are the same drawing split by complementary clips, so
-   * nothing is painted twice and the two fragments meet exactly. Pass 1 is
-   * covered by the kraft — that is the point: the curl slides in at the hole and
-   * disappears, and the card reads as hung on the hook rather than as a card the
-   * hook is lying on top of.
-   *
-   * The split is the slot's *midline* rather than its upper lip so the shank is
-   * still visible for the first half of the hole before it goes behind. Cut at
-   * the lip it stopped dead on the slot's top edge, which read as butting
-   * against the hole rather than entering it.
-   *
-   * The lanyard hangs on the slot's centre line, not the canvas's, so the shank
-   * comes down where the hole actually is.
-   */
-  const g = lanyardGeometry(L.punch.x + L.punch.w / 2, L.y, 1.75);
-  const split = L.punch.y + L.punch.h / 2;
-  const hook = () =>
-    lanyardHook(ctx, g, {
-      rotate: HOOK_TWIST,
-      strapRotate: STRAP_TWIST,
-      clipArt: assets.clip,
-      fullArt: assets.lanyard,
-    });
-
-  // 1. the tip, behind the card
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(0, split, W, H - split);
-  ctx.clip();
-  hook();
-  ctx.restore();
-
-  // 2. the card face
   if (face === "front") drawFront(ctx, env, data, L, assets);
   else drawBack(ctx, env, L, assets);
 
-  // 3. everything above the lip, over the card face. Identical on both faces —
-  // the card is what's flipping, not the thing it hangs from.
-  //
-  // Clipping at the *card's* top edge instead looked broken: the hook moves
-  // sideways over the strip between that edge and the slot, so the fragment
-  // above and the fragment below didn't line up.
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(0, 0, W, split);
-  ctx.clip();
-  lanyardStrap(ctx, g, { rotate: STRAP_TWIST, fullArt: assets.lanyard });
-  hook();
-  ctx.restore();
+  // The lanyard is one piece drawn over whichever face is showing, so flipping
+  // the card swaps only what is underneath it. Nothing is layered behind the
+  // card: the grommet seats in the hole, and the hole is the only contact.
+  lanyard(ctx, L.punch);
 
   ctx.restore();
 }

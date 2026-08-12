@@ -1,10 +1,13 @@
 import JsBarcode from "jsbarcode";
 import { COLORS, EVENT, FONTS } from "../brand";
 import {
+  addRoundRect,
   Ctx,
   devaBadge,
+  fitFontSize,
   font,
   grain,
+  mulberry,
   roundRect,
   starburst,
   trackedText,
@@ -141,438 +144,217 @@ export function loopySquiggle(
 /* ----------------------------------------------------------------- lanyard */
 
 /**
- * Clip geometry, shared so the assembly's drawn height and the height it is
- * seated at can never drift apart — when they did, the hook ran into the card's
- * header text.
+ * The circular opening in the card that the grommet seats in. The card and the
+ * lanyard both read it from `cardLayout`, so the ring can never drift off the
+ * hole it is meant to be reinforcing.
  */
-const CLIP_WEIGHT = 1.18;
-/** Overall assembly height in reference units, crown of the bail to curl. */
-const CLIP_UNITS = 300;
-/**
- * Crown of the bail down to the *body's* bottom, where the thin hook takes over.
- * The assembly is seated by this rather than by its lowest point: what has to
- * line up with the card is where the housing ends and the hook goes in, not
- * where the curl bottoms out behind it.
- */
-const CLIP_BODY_UNITS = 234;
-const clipUnit = (scale: number) => ((76 * scale) / 130) * CLIP_WEIGHT;
-const clipHeight = (scale: number) => CLIP_UNITS * clipUnit(scale);
-const clipBodyDrop = (scale: number) => CLIP_BODY_UNITS * clipUnit(scale);
+export type Punch = { cx: number; cy: number; r: number };
 
 /**
- * How far below the card's top edge the body's bottom sits, in canvas px.
+ * Strap width, and the outer edge of the grommet's flange. Kept close together
+ * on purpose: a ring much narrower than the webbing leaves the tail's flat
+ * bottom edge hanging over bare kraft, and the two read as separate objects
+ * rather than as a strap feeding into a ring.
+ */
+const STRAP_W = 88;
+const EYELET_R = 38;
+/** Centre line of the buckle: roughly two thirds of the way down the run. */
+const BUCKLE_Y = 292;
+/** Inset of the stitch line from the webbing's edge. */
+const STITCH_INSET = 8;
+
+/**
+ * Printed webbing hung from the poster's top edge, through a D-ring, down to a
+ * grommet set in the card's punch hole.
  *
- * Small on purpose. The chrome housing comes to rest just onto the kraft, and
- * only the thin hook carries on for the ~19px to the punch slot's upper lip,
- * where it goes behind the card. A fat housing ending at the slot reads as
- * jammed into it; a housing that stops short of the card reads as floating.
+ * Four flat pieces, back to front: upper strap, tail, buckle over the join, then
+ * the eyelet. Nothing goes behind the card — the ring is the only part that
+ * touches it, seated in the hole the way a real grommet reinforces one. The
+ * whole assembly is one component and is drawn over whichever face is showing,
+ * so flipping the card never moves it.
  */
-const BODY_BELOW_CARD_TOP = 7;
+export function lanyard(ctx: Ctx, punch: Punch) {
+  const cx = punch.cx;
+  const x = cx - STRAP_W / 2;
+  // The tail runs down to the top of the *opening* — far enough that the flange
+  // covers its last ~18px, so the webbing reads as feeding into the ring, but
+  // not so far that pink shows through the hole itself.
+  const tailBottom = punch.cy - punch.r - 1;
 
-/**
- * The lanyard is drawn as **two independent layers** so the card can sit between
- * them, which is what makes the hook read as threaded through the punch hole
- * rather than stuck on top of it:
- *
- *   `lanyardStrap` → card face → `lanyardHook`
- *
- * They are two draw passes rather than one fused piece so each can carry its own
- * pivot and angle. The two pivots form a chain, the way the real hardware does:
- * the strap swings from the top edge it hangs off, and the hook swings from the
- * swivel ball — which the strap's swing has already moved. Because the hook is
- * placed *onto* wherever the joint ended up (`lanyardJoint`), the halves stay
- * welded at the collar no matter how far either is turned.
- */
-export type LanyardGeometry = {
-  cx: number;
-  scale: number;
-  strapW: number;
-  strapLen: number;
-  /** Top of the metal assembly: the crown of the wire bail. */
-  top: number;
-  /** The swivel ball both halves pivot on, and where they meet. */
-  joint: { x: number; y: number };
-  /** Reference units → canvas px, at this scale. */
-  px: (n: number) => number;
-};
+  // 1. upper strap, cut off by the poster's top edge
+  webbing(ctx, x, -10, STRAP_W, BUCKLE_Y + 14 - -10, (bx, by, bw, bh) =>
+    stampPattern(ctx, bx, by, bw, bh),
+  );
 
-/**
- * Solves the assembly's placement once, so the two layers can never drift apart:
- * both read their positions out of the same object.
- */
-export function lanyardGeometry(
-  cx: number,
-  cardTop: number,
-  requestedScale = 1,
-): LanyardGeometry {
-  // The card's top moves as it grows for a tall photo. Shrink the hardware to
-  // fit rather than letting the strap collapse to nothing above it.
-  const scale = Math.min(requestedScale, cardTop / 300);
-  const strapW = 76 * scale;
-  const px = (n: number) => n * ((strapW / 130) * CLIP_WEIGHT);
-  // Seated from the body's bottom up: fix where the housing meets the card, and
-  // the crown falls out of that. The strap takes whatever room is left above.
-  // Seating by the hook's lowest point instead let the shaft stretch down across
-  // the open kraft to reach the slot.
-  const top = cardTop + BODY_BELOW_CARD_TOP - clipBodyDrop(scale);
-  return {
-    cx,
-    scale,
-    strapW,
-    strapLen: Math.max(1, top + 14 * scale),
-    top,
-    // Centre of the flared collar: the bail's legs land on it from above and the
-    // body hangs off it from below.
-    joint: { x: cx, y: top + px(110) + px(9) },
-    px,
-  };
-}
+  // 3. tail below the buckle
+  webbing(ctx, x, BUCKLE_Y - 10, STRAP_W, tailBottom - (BUCKLE_Y - 10), (bx, by, bw, bh) =>
+    tailMarks(ctx, bx, by, bw, bh),
+  );
 
-/** The strap's own pivot: the top edge it hangs off. */
-const anchorOf = (g: LanyardGeometry) => ({ x: g.cx, y: 0 });
+  // 2. the D-ring, last of the three so it covers the join between them
+  dRing(ctx, cx, BUCKLE_Y);
 
-/**
- * Where the swivel ball ends up once the strap has swung by `strapRotate`. The
- * hook half is seated on this rather than on its nominal position, which is what
- * keeps the two halves joined while each turns on a pivot of its own.
- */
-export function lanyardJoint(g: LanyardGeometry, strapRotate: number) {
-  const a = anchorOf(g);
-  const dx = g.joint.x - a.x;
-  const dy = g.joint.y - a.y;
-  const c = Math.cos(strapRotate);
-  const s = Math.sin(strapRotate);
-  return { x: a.x + dx * c - dy * s, y: a.y + dx * s + dy * c };
-}
-
-function pivoted(ctx: Ctx, at: { x: number; y: number }, rotate: number, draw: () => void) {
-  ctx.save();
-  ctx.translate(at.x, at.y);
-  ctx.rotate(rotate);
-  ctx.translate(-at.x, -at.y);
-  draw();
-  ctx.restore();
+  // 4. the grommet
+  eyelet(ctx, punch);
 }
 
 /**
- * **Back layer.** Pink webbing from the top edge, the starburst rivet, and the
- * wire bail down to the swivel collar — everything above the joint. Drawn before
- * the card, so the card's edge and shadow fall over it.
+ * One panel of pink webbing: flat fill, then a dashed gold stitch line just
+ * inside each edge. `content` draws the print, clipped to the panel.
  */
-export function lanyardStrap(
+function webbing(
   ctx: Ctx,
-  g: LanyardGeometry,
-  opts: { rotate?: number; fullArt?: CanvasImageSource | null } = {},
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  content: (x: number, y: number, w: number, h: number) => void,
 ) {
-  const { rotate = 0, fullArt = null } = opts;
-  // A photograph of the whole lanyard is one fused piece by nature — it can't be
-  // split at the joint, so it is left entirely to the front layer.
-  if (fullArt) return;
+  ctx.save();
+  ctx.fillStyle = COLORS.pink;
+  ctx.fillRect(x, y, w, h);
 
-  const { cx, scale, strapW, strapLen, top, px } = g;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  content(x, y, w, h);
+  ctx.restore();
 
-  pivoted(ctx, anchorOf(g), rotate, () => {
-    // strap: near-parallel webbing tapering slightly into the swivel
+  // stitching, drawn over the print the way it would be sewn through it
+  ctx.strokeStyle = COLORS.gold;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([7, 5]);
+  ctx.beginPath();
+  ctx.moveTo(x + STITCH_INSET, y);
+  ctx.lineTo(x + STITCH_INSET, y + h);
+  ctx.moveTo(x + w - STITCH_INSET, y);
+  ctx.lineTo(x + w - STITCH_INSET, y + h);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+/**
+ * The repeating stamp print down the upper strap: two strings tiled at
+ * alternating angles — one a shallow diagonal, the next close to vertical — with
+ * deterministic jitter on angle and offset so the tiling reads as printed webbing
+ * rather than as a ruled list.
+ */
+function stampPattern(ctx: Ctx, x: number, y: number, w: number, h: number) {
+  const rnd = mulberry(23);
+  const lines = ["HACKER HOUSE GOA 2026", "HACKER BUILDERS"];
+  const size = 11;
+  const step = 34;
+
+  ctx.save();
+  ctx.fillStyle = COLORS.ink;
+  ctx.globalAlpha = 0.9;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = font(FONTS.display, size, 900);
+
+  for (let i = 0, ty = y + 16; ty < y + h; ty += step, i++) {
+    const steep = i % 2 === 1;
+    const angle = (steep ? -1.28 : -0.42) + (rnd() - 0.5) * 0.22;
     ctx.save();
-    ctx.fillStyle = COLORS.pink;
-    ctx.beginPath();
-    ctx.moveTo(cx - strapW * 0.6, -4);
-    ctx.lineTo(cx - strapW * 0.46, top + 14 * scale);
-    ctx.lineTo(cx + strapW * 0.46, top + 14 * scale);
-    ctx.lineTo(cx + strapW * 0.6, -4);
-    ctx.closePath();
-    ctx.fill();
-
-    // fold shading down the centre
-    const sh = ctx.createLinearGradient(cx - strapW, 0, cx + strapW, 0);
-    sh.addColorStop(0, "rgba(0,0,0,0.16)");
-    sh.addColorStop(0.45, "rgba(255,255,255,0.14)");
-    sh.addColorStop(1, "rgba(0,0,0,0.2)");
-    ctx.fillStyle = sh;
-    ctx.fill();
+    ctx.translate(x + w / 2 + (rnd() - 0.5) * w * 0.3, ty);
+    ctx.rotate(angle);
+    ctx.fillText(lines[i % lines.length], 0, 0);
     ctx.restore();
-
-    // Rivet decal, placed proportionally so it stays on the webbing whatever
-    // length the strap ends up being.
-    const rivetR = Math.min(26 * scale, strapLen * 0.26);
-    ctx.save();
-    ctx.fillStyle = COLORS.black;
-    starburst(ctx, cx, strapLen * 0.33, rivetR, rivetR * 0.38, 10, 0.3, 3);
-    ctx.fill();
-    ctx.fillStyle = COLORS.cream;
-    ctx.beginPath();
-    ctx.arc(cx, strapLen * 0.72, Math.min(9 * scale, strapLen * 0.09), 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(0,0,0,0.35)";
-    ctx.lineWidth = 2 * scale;
-    ctx.stroke();
-    ctx.restore();
-
-    bail(ctx, cx, top, px);
-  });
+  }
+  ctx.restore();
 }
 
-/**
- * **Front layer.** The tapered body, its spring trigger and the J-hook —
- * everything below the joint. Drawn after the card, and the caller clips it to
- * the punch slot so the foot disappears into the hole instead of lying on the
- * kraft.
- */
-export function lanyardHook(
-  ctx: Ctx,
-  g: LanyardGeometry,
-  opts: {
-    rotate?: number;
-    /** The angle the strap was drawn at, so this half can follow its joint. */
-    strapRotate?: number;
-    clipArt?: CanvasImageSource | null;
-    fullArt?: CanvasImageSource | null;
-  } = {},
-) {
-  const { rotate = 0, strapRotate = 0, clipArt = null, fullArt = null } = opts;
-  const { cx, scale, top, px } = g;
+/** The tail's print: an eight-point burst over "247 BUILDERS". */
+function tailMarks(ctx: Ctx, x: number, y: number, w: number, h: number) {
+  const cx = x + w / 2;
 
-  // Ride the joint to wherever the strap's swing left it, then turn on it. The
-  // pivot stays g.joint: the translate above has already carried that point onto
-  // the swung joint, so rotating about it rotates about the real one.
-  const joint = lanyardJoint(g, strapRotate);
   ctx.save();
-  ctx.translate(joint.x - g.joint.x, joint.y - g.joint.y);
+  ctx.fillStyle = COLORS.black;
+  starburst(ctx, cx, y + h * 0.42, 15, 5.5, 8, 0.32, 9);
+  ctx.fill();
+  ctx.restore();
 
-  pivoted(ctx, g.joint, rotate, () => {
-    // Photographic overrides are single fused images: they carry the strap and
-    // hardware together, so they stand in for the whole assembly here.
-    if (fullArt) {
-      const iw = (fullArt as HTMLImageElement).width;
-      const ih = (fullArt as HTMLImageElement).height;
-      if (iw && ih) {
-        const h = top + px(CLIP_UNITS);
-        const w = (iw / ih) * h;
-        ctx.save();
-        ctx.shadowColor = "rgba(0,0,0,0.4)";
-        ctx.shadowBlur = 20;
-        ctx.shadowOffsetY = 8;
-        ctx.drawImage(fullArt, cx - w / 2, 0, w, h);
-        ctx.restore();
-        return;
-      }
-    }
-
-    if (clipArt) {
-      // Real photography of the clip, when supplied: drawn into the same box the
-      // vector version occupies so the strap still meets it correctly.
-      const iw = (clipArt as HTMLImageElement).width;
-      const ih = (clipArt as HTMLImageElement).height;
-      const h = clipHeight(scale);
-      const w = (iw / ih) * h;
-      ctx.save();
-      ctx.shadowColor = "rgba(0,0,0,0.4)";
-      ctx.shadowBlur = 18 * scale;
-      ctx.shadowOffsetY = 6 * scale;
-      ctx.drawImage(clipArt, cx - w / 2, top, w, h);
-      ctx.restore();
-      return;
-    }
-
-    snap(ctx, cx, top, px);
-  });
+  ctx.save();
+  ctx.fillStyle = COLORS.ink;
+  ctx.textBaseline = "middle";
+  // sets ctx.font to the largest size that still fits between the stitch lines
+  fitFontSize(ctx, "247 BUILDERS", FONTS.display, 900, 16, 9, w - 26, 0.6);
+  trackedText(ctx, "247 BUILDERS", cx, y + h * 0.78, 0.6, "center");
   ctx.restore();
 }
 
 /**
- * Chrome trigger snap, drawn to match the reference photograph.
- *
- * Top to bottom: a round-wire loop with a flat top and generously rounded
- * corners whose legs converge on a mushroom collar, then a flat tapered body
- * carrying the spring trigger, then the J-hook that drops into the punch slot.
- *
- * Proportions are taken from the reference at a 130px strap and expressed
- * relative to the strap width, so the whole assembly scales as one piece.
+ * The D-ring the webbing doubles back through. Flat metal: a three-stop linear
+ * ramp rather than the specular banding the old hardware used, so it sits in the
+ * poster's illustration style instead of on top of it.
  */
-type Px = (n: number) => number;
+function dRing(ctx: Ctx, cx: number, cy: number) {
+  const w = STRAP_W + 18;
+  const h = 46;
+  const t = 9;
+  const x = cx - w / 2;
+  const y = cy - h / 2;
 
-/**
- * Chrome: dark edges, two bright specular bands, a mid tone between. Both halves
- * pull their metal from here, so a rotated hook still matches its own bail.
- */
-function chrome(ctx: Ctx, x0: number, x1: number) {
-  const grd = ctx.createLinearGradient(x0, 0, x1, 0);
-  grd.addColorStop(0, "#5F6469");
-  grd.addColorStop(0.14, "#B9BEC4");
-  grd.addColorStop(0.3, "#F2F5F8");
-  grd.addColorStop(0.46, "#9AA0A7");
-  grd.addColorStop(0.62, "#D8DDE2");
-  grd.addColorStop(0.82, "#8E949B");
-  grd.addColorStop(1, "#54595E");
-  return grd;
-}
-
-/**
- * Everything above the joint: the round-wire bail with its flat top and
- * generously rounded corners, whose legs converge on the mushroom collar.
- *
- * The collar itself belongs to the hook half, not this one. It is the piece the
- * bail *turns on*, so it has to stay welded to the body — put it up here and the
- * two halves' opposing twists tear a seam open right at the joint, which is the
- * one place the assembly has to read as continuous. The bail's legs sweep around
- * it instead, which is what a swivel actually does.
- */
-function bail(ctx: Ctx, cx: number, top: number, px: Px) {
-  const loopW = px(175);
-  const loopH = px(110);
-  const wire = px(17);
-  const collarY = top + loopH;
-
-  /* ---- wire loop ---- */
   ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.42)";
-  ctx.shadowBlur = px(18);
-  ctx.shadowOffsetY = px(6);
-  ctx.strokeStyle = chrome(ctx, cx - loopW / 2, cx + loopW / 2);
-  ctx.lineWidth = wire;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
+  const g = ctx.createLinearGradient(x, y, x + w, y + h);
+  g.addColorStop(0, COLORS.silverHi);
+  g.addColorStop(0.55, COLORS.silver);
+  g.addColorStop(1, COLORS.silverLo);
+  ctx.fillStyle = g;
   ctx.beginPath();
-  ctx.moveTo(cx - px(24), collarY);
-  ctx.quadraticCurveTo(cx - loopW * 0.5, top + loopH * 0.72, cx - loopW * 0.5, top + loopH * 0.34);
-  ctx.quadraticCurveTo(cx - loopW * 0.5, top, cx - loopW * 0.2, top);
-  ctx.lineTo(cx + loopW * 0.2, top);
-  ctx.quadraticCurveTo(cx + loopW * 0.5, top, cx + loopW * 0.5, top + loopH * 0.34);
-  ctx.quadraticCurveTo(cx + loopW * 0.5, top + loopH * 0.72, cx + px(24), collarY);
+  addRoundRect(ctx, x, y, w, h, 14);
+  addRoundRect(ctx, x + t, y + t, w - t * 2, h - t * 2, 7);
+  ctx.fill("evenodd");
+
+  ctx.strokeStyle = "rgba(20,18,16,0.35)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  addRoundRect(ctx, x, y, w, h, 14);
+  addRoundRect(ctx, x + t, y + t, w - t * 2, h - t * 2, 7);
   ctx.stroke();
   ctx.restore();
-
 }
 
 /**
- * Everything below the joint: the mushroom collar the bail swivels on, the flat
- * tapered body carrying the spring trigger, then the J-hook that drops into the
- * punch slot.
- *
- * `top` is the bail's crown, not this piece's own top — both halves are placed
- * from the same origin so they line up at the collar whatever each is rotated to.
+ * The grommet: a flat ring from the hole's edge out to its flange. Drawn after
+ * the card, sitting flush in the punch hole — the hole itself stays open, so
+ * whatever is behind the card shows through the middle.
  */
-function snap(ctx: Ctx, cx: number, top: number, px: Px) {
-  const collarY = top + px(110);
-  // Compact, per the reference clip: a stubby housing with a short hook off it.
-  // At the old 26/132 the shaft ran long enough to reach well down the open
-  // kraft before the hook even started.
-  const bodyTop = collarY + px(20);
-  const bodyH = px(104);
-  const bodyW = px(84);
-  const bodyBottom = bodyTop + bodyH;
-
-  /* ---- mushroom collar the loop swivels on ---- */
+function eyelet(ctx: Ctx, p: Punch) {
+  const TAU = Math.PI * 2;
   ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.35)";
-  ctx.shadowBlur = px(10);
-  ctx.shadowOffsetY = px(4);
-  ctx.fillStyle = chrome(ctx, cx - px(23), cx + px(23));
-  // domed cap
+  const g = ctx.createLinearGradient(
+    p.cx - EYELET_R,
+    p.cy - EYELET_R,
+    p.cx + EYELET_R,
+    p.cy + EYELET_R,
+  );
+  g.addColorStop(0, COLORS.silverHi);
+  g.addColorStop(0.55, COLORS.silver);
+  g.addColorStop(1, COLORS.silverLo);
+  ctx.fillStyle = g;
+
   ctx.beginPath();
-  ctx.ellipse(cx, collarY - px(4), px(15), px(11), 0, 0, Math.PI * 2);
-  ctx.fill();
-  // flared base
-  ctx.beginPath();
-  ctx.moveTo(cx - px(14), collarY - px(2));
-  ctx.lineTo(cx + px(14), collarY - px(2));
-  ctx.lineTo(cx + px(23), collarY + px(20));
-  ctx.lineTo(cx - px(23), collarY + px(20));
+  ctx.arc(p.cx, p.cy, EYELET_R, 0, TAU);
   ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-
-  /* ---- flat tapered body ---- */
-  ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.3)";
-  ctx.shadowBlur = px(10);
-  ctx.shadowOffsetY = px(4);
-  ctx.fillStyle = chrome(ctx, cx - bodyW / 2, cx + bodyW / 2);
-  ctx.beginPath();
-  ctx.moveTo(cx - bodyW * 0.42, bodyTop);
-  ctx.quadraticCurveTo(cx - bodyW * 0.5, bodyTop + bodyH * 0.3, cx - bodyW * 0.34, bodyTop + bodyH * 0.62);
-  ctx.quadraticCurveTo(cx - bodyW * 0.26, bodyBottom, cx, bodyBottom);
-  ctx.quadraticCurveTo(cx + bodyW * 0.26, bodyBottom, cx + bodyW * 0.34, bodyTop + bodyH * 0.62);
-  ctx.quadraticCurveTo(cx + bodyW * 0.5, bodyTop + bodyH * 0.3, cx + bodyW * 0.42, bodyTop);
+  ctx.moveTo(p.cx + p.r, p.cy);
+  ctx.arc(p.cx, p.cy, p.r, 0, TAU, true);
   ctx.closePath();
-  ctx.fill();
-  ctx.restore();
+  ctx.fill("evenodd");
 
-  /* ---- spring trigger down the body's left face ---- */
-  // Placed as fractions of the body rather than in fixed units, so shortening
-  // the housing carries the trigger with it instead of running it off the end.
-  ctx.save();
-  ctx.strokeStyle = "#6C7278";
-  ctx.lineWidth = px(7);
-  ctx.lineCap = "round";
+  // hairlines top and bottom of the flange, for edge definition on kraft
+  ctx.strokeStyle = "rgba(20,18,16,0.32)";
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(cx - px(16), bodyTop + bodyH * 0.21);
-  ctx.lineTo(cx - px(9), bodyTop + bodyH * 0.79);
+  ctx.arc(p.cx, p.cy, EYELET_R, 0, TAU);
   ctx.stroke();
-  // thumb tab poking out to the left
-  ctx.lineWidth = px(9);
   ctx.beginPath();
-  ctx.moveTo(cx - px(15), bodyTop + bodyH * 0.39);
-  ctx.lineTo(cx - px(34), bodyTop + bodyH * 0.45);
+  ctx.arc(p.cx, p.cy, p.r, 0, TAU);
   ctx.stroke();
-  ctx.restore();
-
-  /* ---- J-hook: sweeps left, rounds the foot, rises to an open tip ---- */
-  // The path is defined once and stroked three times — a dark base for edge
-  // definition, the chrome body, then a specular core. Stroking a single fat
-  // flat-gradient line is what made this read as a grey blob.
-  //
-  // A short near-vertical shank, then a tight curl. The shank is the only part
-  // the viewer sees below the card's top edge: it runs the short distance to the
-  // punch slot's upper lip and stops there, and the curl is drawn on the layer
-  // behind the card. The old 70/112 shank put the whole curl out on the open
-  // kraft, which read as a hook lying on the card rather than hooked into it.
-  const hook = () => {
-    ctx.beginPath();
-    ctx.moveTo(cx - px(2), bodyBottom - px(10));
-    ctx.lineTo(cx - px(6), bodyBottom + px(30));
-    ctx.quadraticCurveTo(cx - px(24), bodyBottom + px(66), cx + px(6), bodyBottom + px(70));
-    // The open tip stops well down: at px(34) it surfaced a stray bead of chrome
-    // just above the split line, reading as a speck in the hole beside the shank.
-    ctx.quadraticCurveTo(cx + px(36), bodyBottom + px(68), cx + px(32), bodyBottom + px(46));
-  };
-
-  ctx.save();
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-
-  // soft contact shadow, kept light: on kraft a heavy one reads as a smudge
-  ctx.save();
-  ctx.strokeStyle = "rgba(40,30,15,0.16)";
-  ctx.lineWidth = px(19);
-  ctx.shadowColor = "rgba(40,30,15,0.2)";
-  ctx.shadowBlur = px(7);
-  ctx.shadowOffsetY = px(3);
-  hook();
-  ctx.stroke();
-  ctx.restore();
-
-  ctx.strokeStyle = "#4A4F55";
-  ctx.lineWidth = px(19);
-  hook();
-  ctx.stroke();
-
-  ctx.strokeStyle = chrome(ctx, cx - px(26), cx + px(47));
-  ctx.lineWidth = px(15.5);
-  hook();
-  ctx.stroke();
-
-  // specular core, offset toward the light
-  ctx.strokeStyle = "rgba(255,255,255,0.72)";
-  ctx.lineWidth = px(4.5);
-  ctx.save();
-  ctx.translate(-px(2.5), -px(1.5));
-  hook();
-  ctx.stroke();
-  ctx.restore();
   ctx.restore();
 }
-
 /* ------------------------------------------------------------- icon strip */
 
 export type IconKind = "code" | "palm" | "wave" | "rocket" | "247";
@@ -761,7 +543,7 @@ export function barcode(
 
 /* ------------------------------------------------------------- card shell */
 
-/** Kraft card body: grain, rounded corners, drop shadow and punch-hole slot. */
+/** Kraft card body: grain, rounded corners, drop shadow and punch hole. */
 export function cardShell(
   ctx: Ctx,
   x: number,
@@ -769,6 +551,7 @@ export function cardShell(
   w: number,
   h: number,
   r: number,
+  punch: Punch,
 ) {
   ctx.save();
   ctx.shadowColor = "rgba(0,0,0,0.45)";
@@ -791,14 +574,14 @@ export function cardShell(
   grain(ctx, x, y, w, h, 0.0016, 41, "rgba(255,255,255,0.3)", "rgba(90,64,26,0.16)");
   ctx.restore();
 
-  // punch hole
-  const slotW = w * 0.19;
-  const slotH = h * 0.026;
-  const sx = x + (w - slotW) / 2;
-  const sy = y + h * 0.032;
+  // Punch hole. Round, because a grommet is — it used to be a wide slot, which
+  // suited the hook that was threaded through it. The opening is filled with the
+  // poster's deep green so it reads as open; the eyelet's flange lands on the
+  // kraft around it afterwards.
   ctx.save();
   ctx.fillStyle = COLORS.greenDeep;
-  roundRect(ctx, sx, sy, slotW, slotH, slotH / 2);
+  ctx.beginPath();
+  ctx.arc(punch.cx, punch.cy, punch.r, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = "rgba(90,64,26,0.5)";
   ctx.lineWidth = 2;

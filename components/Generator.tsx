@@ -96,11 +96,8 @@ export default function Generator() {
     load(BRAND_ASSET_PATHS.goa, "goa");
     load(BRAND_ASSET_PATHS.studio, "studio");
     load(BRAND_ASSET_PATHS.wordmark, "wordmark");
-    // Optional overrides: a full lockup for the card back, and a photograph of
-    // the lanyard clip in place of the drawn one.
+    // Optional override: a full lockup for the card back.
     load(process.env.NEXT_PUBLIC_LOGO_URL, "logo");
-    load(process.env.NEXT_PUBLIC_CLIP_URL, "clip");
-    load(process.env.NEXT_PUBLIC_LANYARD_URL, "lanyard");
   }, []);
 
   /** What the renderers actually composite: the cut-out when it's on and ready. */

@@ -14,9 +14,7 @@
     "check:cutout": "tsx scripts/cutout-check.mts",
     "check:polarity": "tsx scripts/segment-polarity-test.mts",
     "brand": "tsx scripts/rasterize-brand.mts",
-    "favicon": "tsx scripts/make-favicon.mts",
-    "brand:lanyard": "tsx scripts/prepare-lanyard.mts",
-    "check:lanyard": "tsx scripts/lanyard-selftest.mts"
+    "favicon": "tsx scripts/make-favicon.mts"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
